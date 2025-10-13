@@ -40,7 +40,7 @@ export default function DashboardPage() {
   // Mock data
   const dailyCoins = [
     { name: "Bitcoin", symbol: "BTC", price: "$45,234.56", change: "+2.4%", positive: true },
-    { name: "Ethereum", symbol: "ETH", price: "$2,845.12", change: "+1.8%", positive: true },
+    { name: "Ethereum", symbol: "ET", price: "$2,845.12", change: "+1.8%", positive: true },
     { name: "Ripple", symbol: "XRP", price: "$0.6234", change: "-0.5%", positive: false },
   ];
 
