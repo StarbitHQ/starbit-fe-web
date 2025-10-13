@@ -1,14 +1,22 @@
 "use client"
 
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { StarBitLogo } from "./starbit-logo"
 import { Button } from "./ui/button"
 import { Menu, X, User, LogOut } from "lucide-react"
 import { useState } from "react"
+import { useToast } from "@/hooks/use-toast"
+
+// Helper function to delete cookie
+function deleteCookie(name: string) {
+  document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 UTC;path=/;`;
+}
 
 export function NavHeader({ isAuthenticated = false }: { isAuthenticated?: boolean }) {
   const pathname = usePathname()
+  const router = useRouter()
+  const { toast } = useToast()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   const navLinks = isAuthenticated
@@ -20,6 +28,24 @@ export function NavHeader({ isAuthenticated = false }: { isAuthenticated?: boole
         { href: "/support", label: "Support" },
       ]
     : []
+
+  const handleLogout = () => {
+    // Delete auth cookies
+    deleteCookie("auth_token")
+    deleteCookie("user_data")
+
+    // Show logout success message
+    toast({
+      title: "Logged out successfully",
+      description: "You have been logged out of your account",
+    })
+
+    // Close mobile menu if open
+    setMobileMenuOpen(false)
+
+    // Redirect to login page
+    router.push("/login")
+  }
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -47,11 +73,18 @@ export function NavHeader({ isAuthenticated = false }: { isAuthenticated?: boole
         <div className="hidden md:flex items-center gap-3">
           {isAuthenticated ? (
             <>
-              <Button variant="ghost" size="sm" className="gap-2">
-                <User className="h-4 w-4" />
-                Profile
-              </Button>
-              <Button variant="outline" size="sm" className="gap-2 bg-transparent">
+              <Link href="/profile">
+                <Button variant="ghost" size="sm" className="gap-2">
+                  <User className="h-4 w-4" />
+                  Profile
+                </Button>
+              </Link>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="gap-2 bg-transparent"
+                onClick={handleLogout}
+              >
                 <LogOut className="h-4 w-4" />
                 Logout
               </Button>
@@ -97,11 +130,23 @@ export function NavHeader({ isAuthenticated = false }: { isAuthenticated?: boole
             <div className="flex flex-col gap-2 pt-4 border-t border-border">
               {isAuthenticated ? (
                 <>
-                  <Button variant="ghost" size="sm" className="gap-2 justify-start">
-                    <User className="h-4 w-4" />
-                    Profile
-                  </Button>
-                  <Button variant="outline" size="sm" className="gap-2 justify-start bg-transparent">
+                  <Link href="/profile">
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="gap-2 justify-start w-full"
+                      onClick={() => setMobileMenuOpen(false)}
+                    >
+                      <User className="h-4 w-4" />
+                      Profile
+                    </Button>
+                  </Link>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="gap-2 justify-start bg-transparent"
+                    onClick={handleLogout}
+                  >
                     <LogOut className="h-4 w-4" />
                     Logout
                   </Button>

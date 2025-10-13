@@ -1,7 +1,9 @@
-import { NavHeader } from "@/components/nav-header"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
+"use client";
+
+import { NavHeader } from "@/components/nav-header";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import {
   TrendingUp,
   Users,
@@ -14,29 +16,46 @@ import {
   CheckCircle2,
   XCircle,
   Clock,
-} from "lucide-react"
-import Link from "next/link"
+} from "lucide-react";
+import Link from "next/link";
+import { useEffect, useState } from "react";
+import Cookies from "js-cookie";
 
 export default function DashboardPage() {
+  const [user, setUser] = useState<any>(null);
+
+  useEffect(() => {
+    const userData = Cookies.get("user_data");
+    
+    if (userData) {
+      try {
+        const parsedUser = JSON.parse(userData);
+        setUser(parsedUser);
+      } catch (error) {
+        console.error("Error parsing user data:", error);
+      }
+    }
+  }, []);
+
   // Mock data
   const dailyCoins = [
     { name: "Bitcoin", symbol: "BTC", price: "$45,234.56", change: "+2.4%", positive: true },
     { name: "Ethereum", symbol: "ETH", price: "$2,845.12", change: "+1.8%", positive: true },
     { name: "Ripple", symbol: "XRP", price: "$0.6234", change: "-0.5%", positive: false },
-  ]
+  ];
 
   const stats = [
     { label: "Total Trades", value: "24", icon: Activity, color: "text-primary" },
     { label: "Active Offers", value: "3", icon: TrendingUp, color: "text-secondary" },
     { label: "Referrals", value: "12", icon: Users, color: "text-primary" },
     { label: "Total Volume", value: "$12.5K", icon: DollarSign, color: "text-secondary" },
-  ]
+  ];
 
   const recentTrades = [
     { id: 1, coin: "BTC", amount: "0.05", status: "completed", date: "2 hours ago" },
     { id: 2, coin: "ETH", amount: "1.2", status: "pending", date: "5 hours ago" },
     { id: 3, coin: "XRP", amount: "500", status: "completed", date: "1 day ago" },
-  ]
+  ];
 
   return (
     <div className="min-h-screen bg-background">
@@ -45,8 +64,17 @@ export default function DashboardPage() {
       <main className="container mx-auto px-4 py-8">
         {/* Welcome Section */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-foreground mb-2">Welcome back, Alex</h1>
+          <h1 className="text-3xl font-bold text-foreground mb-2">
+            Welcome back, {user?.name || "User"}
+          </h1>
           <p className="text-muted-foreground">Here's what's happening with your trading today</p>
+          {user?.referral_code && (
+            <div className="mt-2 flex items-center gap-2">
+              <Badge variant="outline" className="bg-primary/10 text-primary">
+                Referral Code: {user.referral_code}
+              </Badge>
+            </div>
+          )}
         </div>
 
         {/* Stats Grid */}
@@ -93,7 +121,9 @@ export default function DashboardPage() {
                     </div>
                     <div className="text-right">
                       <p className="font-semibold text-foreground">{coin.price}</p>
-                      <p className={`text-sm ${coin.positive ? "text-primary" : "text-destructive"}`}>{coin.change}</p>
+                      <p className={`text-sm ${coin.positive ? "text-primary" : "text-destructive"}`}>
+                        {coin.change}
+                      </p>
                     </div>
                   </div>
                 ))}
@@ -189,5 +219,5 @@ export default function DashboardPage() {
         </Card>
       </main>
     </div>
-  )
+  );
 }

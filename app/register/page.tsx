@@ -1,23 +1,24 @@
-"use client"
+"use client";
 
-import type React from "react"
-
-import { useState } from "react"
-import Link from "next/link"
-import { useRouter } from "next/navigation"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Checkbox } from "@/components/ui/checkbox"
-import { StarBitLogo } from "@/components/starbit-logo"
-import { ArrowLeft, Mail, Lock, User, Gift } from "lucide-react"
-import { useToast } from "@/hooks/use-toast"
+import { API_BASE_URL } from "@/lib/api";
+import type React from "react";
+import { useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import { StarBitLogo } from "@/components/starbit-logo";
+import { ArrowLeft, Mail, Lock, User, Gift } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import Cookies from "js-cookie";
 
 export default function RegisterPage() {
-  const router = useRouter()
-  const { toast } = useToast()
-  const [isLoading, setIsLoading] = useState(false)
+  const router = useRouter();
+  const { toast } = useToast();
+  const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -25,21 +26,28 @@ export default function RegisterPage() {
     confirmPassword: "",
     referralCode: "",
     agreeToTerms: false,
-  })
+  });
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value, type, checked } = e.target;
+    setFormData((prev) => ({
+      ...prev,
+      [name]: type === "checkbox" ? checked : value,
+    }));
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsLoading(true)
+    e.preventDefault();
+    setIsLoading(true);
 
-    // Validation
     if (!formData.name || !formData.email || !formData.password) {
       toast({
         title: "Missing fields",
         description: "Please fill in all required fields",
         variant: "destructive",
-      })
-      setIsLoading(false)
-      return
+      });
+      setIsLoading(false);
+      return;
     }
 
     if (formData.password !== formData.confirmPassword) {
@@ -47,9 +55,9 @@ export default function RegisterPage() {
         title: "Password mismatch",
         description: "Passwords do not match",
         variant: "destructive",
-      })
-      setIsLoading(false)
-      return
+      });
+      setIsLoading(false);
+      return;
     }
 
     if (!formData.agreeToTerms) {
@@ -57,22 +65,57 @@ export default function RegisterPage() {
         title: "Terms required",
         description: "Please agree to the Terms of Service and Privacy Policy",
         variant: "destructive",
-      })
-      setIsLoading(false)
-      return
+      });
+      setIsLoading(false);
+      return;
     }
 
-    // Simulate API call
-    setTimeout(() => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/register`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: formData.name,
+          email: formData.email,
+          password: formData.password,
+          referral_code: formData.referralCode || null,
+        }),
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.message || "Registration failed");
+      }
+
+      const data = await res.json();
+      console.log('Response:', data); 
+
+      // Store token and user data in cookies
+      if (data.token) {
+        Cookies.set("auth_token", data.token, { expires: 7 }); // Expires in 7 days
+        Cookies.set("user_data", JSON.stringify(data.user), { expires: 7 });
+      }
+
       toast({
-        title: "Check your email!",
-        description: "We've sent you a verification link to complete your registration.",
+        title: "Registration successful!",
+        description: "Welcome to StarBit!",
         className: "bg-primary text-primary-foreground",
-      })
-      setIsLoading(false)
-      // In real app: router.push('/verify-email')
-    }, 1500)
-  }
+      });
+
+      // Redirect to dashboard
+      router.push("/dashboard");
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Something went wrong",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -227,5 +270,5 @@ export default function RegisterPage() {
         </Card>
       </main>
     </div>
-  )
+  );
 }

@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-
 import { useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
@@ -13,6 +12,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { StarBitLogo } from "@/components/starbit-logo"
 import { ArrowLeft, Mail, Lock } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
+import { API_BASE_URL } from "@/lib/api"
 import {
   Dialog,
   DialogContent,
@@ -21,6 +21,13 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+
+// Helper function to set cookie
+function setCookie(name: string, value: string, days: number) {
+  const expires = new Date();
+  expires.setTime(expires.getTime() + days * 24 * 60 * 60 * 1000);
+  document.cookie = `${name}=${value};expires=${expires.toUTCString()};path=/;SameSite=Lax`;
+}
 
 export default function LoginPage() {
   const router = useRouter()
@@ -33,6 +40,7 @@ export default function LoginPage() {
   })
   const [resetEmail, setResetEmail] = useState("")
   const [isResetDialogOpen, setIsResetDialogOpen] = useState(false)
+  const [isResetLoading, setIsResetLoading] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -48,19 +56,53 @@ export default function LoginPage() {
       return
     }
 
-    // Simulate API call
-    setTimeout(() => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/login`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email: formData.email,
+          password: formData.password,
+        }),
+      })
+
+      if (!res.ok) {
+        const errorData = await res.json()
+        throw new Error(errorData.message || "Login failed")
+      }
+
+      const data = await res.json()
+      console.log('Response:', data)
+
+      // Store token and user data in cookies
+      if (data.token) {
+        const cookieDays = formData.rememberMe ? 30 : 7 // 30 days if remember me, otherwise 7 days
+        setCookie("auth_token", data.token, cookieDays)
+        setCookie("user_data", JSON.stringify(data.user), cookieDays)
+      }
+
       toast({
         title: "Welcome back!",
         description: "You've successfully logged in",
         className: "bg-primary text-primary-foreground",
       })
-      setIsLoading(false)
+
+      // Redirect to dashboard
       router.push("/dashboard")
-    }, 1500)
+    } catch (error: any) {
+      toast({
+        title: "Login failed",
+        description: error.message || "Invalid email or password",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoading(false)
+    }
   }
 
-  const handlePasswordReset = () => {
+  const handlePasswordReset = async () => {
     if (!resetEmail) {
       toast({
         title: "Email required",
@@ -70,13 +112,40 @@ export default function LoginPage() {
       return
     }
 
-    toast({
-      title: "Reset link sent!",
-      description: "Check your email for password reset instructions",
-      className: "bg-primary text-primary-foreground",
-    })
-    setIsResetDialogOpen(false)
-    setResetEmail("")
+    setIsResetLoading(true)
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/password/reset`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email: resetEmail,
+        }),
+      })
+
+      if (!res.ok) {
+        const errorData = await res.json()
+        throw new Error(errorData.message || "Failed to send reset link")
+      }
+
+      toast({
+        title: "Reset link sent!",
+        description: "Check your email for password reset instructions",
+        className: "bg-primary text-primary-foreground",
+      })
+      setIsResetDialogOpen(false)
+      setResetEmail("")
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to send reset link",
+        variant: "destructive",
+      })
+    } finally {
+      setIsResetLoading(false)
+    }
   }
 
   return (
@@ -158,8 +227,9 @@ export default function LoginPage() {
                         <Button
                           onClick={handlePasswordReset}
                           className="w-full bg-secondary text-secondary-foreground hover:bg-secondary/90"
+                          disabled={isResetLoading}
                         >
-                          Send Reset Link
+                          {isResetLoading ? "Sending..." : "Send Reset Link"}
                         </Button>
                       </div>
                     </DialogContent>
@@ -186,7 +256,7 @@ export default function LoginPage() {
                   onCheckedChange={(checked) => setFormData({ ...formData, rememberMe: checked as boolean })}
                 />
                 <label htmlFor="remember" className="text-sm text-muted-foreground cursor-pointer">
-                  Stay logged in
+                  Stay logged in for 30 days
                 </label>
               </div>
 
