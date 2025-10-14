@@ -56,6 +56,7 @@ export default function SupportPage() {
     description: "",
     file: null as File | null,
   })
+  const [filePreview, setFilePreview] = useState<string | null>(null)
 
   // Fetch tickets on component mount
   useEffect(() => {
@@ -97,32 +98,76 @@ export default function SupportPage() {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) {
+      // Validate file size (2MB to match backend)
+      if (file.size > 2 * 1024 * 1024) {
+        toast({
+          title: "File too large",
+          description: "Please select a file smaller than 2MB",
+          variant: "destructive",
+        })
+        return
+      }
+      
+      // Validate file type
+      const validTypes = ['image/jpeg', 'image/png', 'image/jpg', 'image/gif', 'image/svg+xml']
+      if (!validTypes.includes(file.type)) {
+        toast({
+          title: "Invalid file type",
+          description: "Only JPEG, PNG, JPG, GIF, and SVG images are allowed",
+          variant: "destructive",
+        })
+        return
+      }
+      
       setFormData({ ...formData, file })
+      
+      // Create preview for images
+      if (file.type.startsWith('image/')) {
+        const reader = new FileReader()
+        reader.onloadend = () => {
+          setFilePreview(reader.result as string)
+        }
+        reader.readAsDataURL(file)
+      } else {
+        setFilePreview(null)
+      }
     }
   }
 
+  const handleRemoveFile = () => {
+    setFormData({ ...formData, file: null })
+    setFilePreview(null)
+    const fileInput = document.getElementById('file') as HTMLInputElement
+    if (fileInput) fileInput.value = ''
+  }
+
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+    e.preventDefault();
     if (!formData.subject || !formData.description) {
       toast({
         title: "Missing fields",
         description: "Please fill in all required fields",
         variant: "destructive",
-      })
-      return
+      });
+      return;
     }
 
+    if (isSubmitting) return; // Prevent double submission
+    setIsSubmitting(true);
+
     try {
-      const token = getCookie('auth_token')
+      const token = getCookie('auth_token');
       if (!token) {
-        throw new Error('No authentication token found')
+        throw new Error('No authentication token found');
       }
 
-      const formDataToSend = new FormData()
-      formDataToSend.append('subject', formData.subject)
-      formDataToSend.append('description', formData.description)
+      const formDataToSend = new FormData();
+      formDataToSend.append('subject', formData.subject);
+      formDataToSend.append('description', formData.description);
       if (formData.file) {
-        formDataToSend.append('image_url', formData.file)
+        formDataToSend.append('image_url', formData.file);
       }
 
       const response = await fetch(`${API_BASE_URL}/api/support`, {
@@ -131,35 +176,42 @@ export default function SupportPage() {
           Authorization: `Bearer ${token}`,
         },
         body: formDataToSend,
-      })
+      });
 
       if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.message || 'Failed to create ticket')
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to create ticket');
       }
 
-      const newTicket = await response.json()
-      
-      // Update tickets list
-      setTickets([newTicket.support, ...tickets])
-      
+      const newTicket = await response.json();
+      setTickets([newTicket.support, ...tickets]);
+
       toast({
         title: "Ticket created!",
         description: "Our support team will respond within 24 hours",
         className: "bg-primary text-primary-foreground",
-      })
+      });
 
-      // Reset form
-      setFormData({ subject: "", description: "", file: null })
-      setIsCreating(false)
+      // Reset form including file input
+      setFormData({ subject: "", description: "", file: null });
+      setFilePreview(null);
+      const fileInput = document.getElementById('file') as HTMLInputElement;
+      if (fileInput) fileInput.value = '';
+      setIsCreating(false);
+
+      setTimeout(() => {
+        window.location.reload();
+      }, 1000);
     } catch (error) {
       toast({
         title: "Error",
         description: error instanceof Error ? error.message : "Failed to create ticket",
         variant: "destructive",
-      })
+      });
+    } finally {
+      setIsSubmitting(false);
     }
-  }
+  };
 
   const handleViewDetails = async (ticketId: number) => {
     try {
@@ -284,22 +336,75 @@ export default function SupportPage() {
                   <Label htmlFor="file" className="text-foreground">
                     Attachment (Optional)
                   </Label>
-                  <div className="border-2 border-dashed border-primary/20 rounded-lg p-4 text-center hover:border-primary/40 transition-colors">
-                    <input
-                      type="file"
-                      id="file"
-                      onChange={handleFileChange}
-                      className="hidden"
-                      accept="image/*,.pdf,.doc,.docx"
-                    />
-                    <label htmlFor="file" className="cursor-pointer">
-                      <Upload className="h-6 w-6 text-primary mx-auto mb-2" />
-                      <p className="text-sm text-foreground">
-                        {formData.file ? formData.file.name : "Click to upload screenshot or document"}
-                      </p>
-                      <p className="text-xs text-muted-foreground mt-1">PNG, JPG, PDF, DOC up to 10MB</p>
-                    </label>
-                  </div>
+                  {!formData.file ? (
+                    <div className="border-2 border-dashed border-primary/20 rounded-lg p-4 text-center hover:border-primary/40 transition-colors">
+                      <input
+                        type="file"
+                        id="file"
+                        onChange={handleFileChange}
+                        className="hidden"
+                        accept="image/jpeg,image/png,image/jpg,image/gif,image/svg+xml"
+                      />
+                      <label htmlFor="file" className="cursor-pointer">
+                        <Upload className="h-6 w-6 text-primary mx-auto mb-2" />
+                        <p className="text-sm text-foreground">
+                          Click to upload screenshot or image
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-1">JPEG, PNG, JPG, GIF, SVG up to 2MB</p>
+                      </label>
+                    </div>
+                  ) : (
+                    <div className="border border-border rounded-lg p-4">
+                      {filePreview ? (
+                        <div className="space-y-3">
+                          <img 
+                            src={filePreview} 
+                            alt="Preview" 
+                            className="w-full h-48 object-contain rounded-lg bg-muted"
+                          />
+                          <div className="flex items-center justify-between">
+                            <p className="text-sm text-foreground truncate flex-1">
+                              {formData.file.name}
+                            </p>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={handleRemoveFile}
+                              className="text-destructive hover:text-destructive"
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className="p-2 rounded bg-primary/10">
+                              <Upload className="h-5 w-5 text-primary" />
+                            </div>
+                            <div>
+                              <p className="text-sm text-foreground font-medium truncate max-w-xs">
+                                {formData.file.name}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                {(formData.file.size / 1024).toFixed(2)} KB
+                              </p>
+                            </div>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={handleRemoveFile}
+                            className="text-destructive hover:text-destructive"
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex gap-3">
@@ -346,14 +451,25 @@ export default function SupportPage() {
                 {selectedTicket.image_url && (
                   <div>
                     <h4 className="font-semibold text-foreground mb-2">Attachment</h4>
-                    <a
-                      href={selectedTicket.image_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-primary hover:underline"
-                    >
-                      View Attachment
-                    </a>
+                    <div className="space-y-2">
+                      <img 
+                        src={selectedTicket.image_url.startsWith('http') ? selectedTicket.image_url : `${API_BASE_URL}${selectedTicket.image_url}`}
+                        alt="Ticket attachment" 
+                        className="w-full max-w-md rounded-lg border border-border"
+                        onError={(e) => {
+                          e.currentTarget.style.display = 'none';
+                          e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                        }}
+                      />
+                      <a
+                        href={selectedTicket.image_url.startsWith('http') ? selectedTicket.image_url : `${API_BASE_URL}${selectedTicket.image_url}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-primary hover:underline text-sm hidden"
+                      >
+                        View Attachment (if image doesn't load)
+                      </a>
+                    </div>
                   </div>
                 )}
                 <div>
