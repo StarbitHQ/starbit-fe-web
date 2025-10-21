@@ -1,18 +1,24 @@
-"use client"
+"use client";
 
-import type React from "react"
-import { useState } from "react"
-import Link from "next/link"
-import { useRouter } from "next/navigation"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Checkbox } from "@/components/ui/checkbox"
-import { StarBitLogo } from "@/components/starbit-logo"
-import { ArrowLeft, Mail, Lock } from "lucide-react"
-import { useToast } from "@/hooks/use-toast"
-import { API_BASE_URL } from "@/lib/api"
+import type React from "react";
+import { useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import { StarBitLogo } from "@/components/starbit-logo";
+import { ArrowLeft, Mail, Lock } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { API_BASE_URL } from "@/lib/api";
 import {
   Dialog,
   DialogContent,
@@ -20,7 +26,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/components/ui/dialog"
+} from "@/components/ui/dialog";
 
 // Helper function to set cookie
 function setCookie(name: string, value: string, days: number) {
@@ -30,34 +36,34 @@ function setCookie(name: string, value: string, days: number) {
 }
 
 export default function LoginPage() {
-  const router = useRouter()
-  const { toast } = useToast()
-  const [isLoading, setIsLoading] = useState(false)
+  const router = useRouter();
+  const { toast } = useToast();
+  const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState({
     email: "",
     password: "",
     rememberMe: false,
-  })
-  const [resetEmail, setResetEmail] = useState("")
-  const [isResetDialogOpen, setIsResetDialogOpen] = useState(false)
-  const [isResetLoading, setIsResetLoading] = useState(false)
+  });
+  const [resetEmail, setResetEmail] = useState("");
+  const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
+  const [isResetLoading, setIsResetLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsLoading(true)
+    e.preventDefault();
+    setIsLoading(true);
 
     if (!formData.email || !formData.password) {
       toast({
         title: "Missing fields",
         description: "Please enter your email and password",
         variant: "destructive",
-      })
-      setIsLoading(false)
-      return
+      });
+      setIsLoading(false);
+      return;
     }
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/login`, {
+      const res = await fetch(`${API_BASE_URL}/api/auth/login`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -66,41 +72,45 @@ export default function LoginPage() {
           email: formData.email,
           password: formData.password,
         }),
-      })
+      });
 
       if (!res.ok) {
-        const errorData = await res.json()
-        throw new Error(errorData.message || "Login failed")
+        const errorData = await res.json();
+        throw new Error(errorData.message || "Login failed");
       }
 
-      const data = await res.json()
-      console.log('Response:', data)
+      const data = await res.json();
+      console.log("Response:", data);
 
       // Store token and user data in cookies
-      if (data.token) {
-        const cookieDays = formData.rememberMe ? 30 : 7 // 30 days if remember me, otherwise 7 days
-        setCookie("auth_token", data.token, cookieDays)
-        setCookie("user_data", JSON.stringify(data.user), cookieDays)
+      if (data.access_token) {
+        const cookieDays = formData.rememberMe ? 30 : 7; 
+        setCookie("auth_token", data.access_token, cookieDays);
+        setCookie("user_data", JSON.stringify(data.user), cookieDays);
       }
 
       toast({
         title: "Welcome back!",
         description: "You've successfully logged in",
         className: "bg-primary text-primary-foreground",
-      })
+      });
 
       // Redirect to dashboard
-      router.push("/dashboard")
+      if (data.user.type === "admin") {
+        router.push("/admin/dashboard");
+      } else {
+        router.push("/dashboard");
+      }
     } catch (error: any) {
       toast({
         title: "Login failed",
         description: error.message || "Invalid email or password",
         variant: "destructive",
-      })
+      });
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   const handlePasswordReset = async () => {
     if (!resetEmail) {
@@ -108,11 +118,11 @@ export default function LoginPage() {
         title: "Email required",
         description: "Please enter your email address",
         variant: "destructive",
-      })
-      return
+      });
+      return;
     }
 
-    setIsResetLoading(true)
+    setIsResetLoading(true);
 
     try {
       const res = await fetch(`${API_BASE_URL}/api/password/reset`, {
@@ -123,30 +133,30 @@ export default function LoginPage() {
         body: JSON.stringify({
           email: resetEmail,
         }),
-      })
+      });
 
       if (!res.ok) {
-        const errorData = await res.json()
-        throw new Error(errorData.message || "Failed to send reset link")
+        const errorData = await res.json();
+        throw new Error(errorData.message || "Failed to send reset link");
       }
 
       toast({
         title: "Reset link sent!",
         description: "Check your email for password reset instructions",
         className: "bg-primary text-primary-foreground",
-      })
-      setIsResetDialogOpen(false)
-      setResetEmail("")
+      });
+      setIsResetDialogOpen(false);
+      setResetEmail("");
     } catch (error: any) {
       toast({
         title: "Error",
         description: error.message || "Failed to send reset link",
         variant: "destructive",
-      })
+      });
     } finally {
-      setIsResetLoading(false)
+      setIsResetLoading(false);
     }
-  }
+  };
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -167,7 +177,9 @@ export default function LoginPage() {
       <main className="flex-1 flex items-center justify-center p-4">
         <Card className="w-full max-w-md bg-card border-border">
           <CardHeader className="space-y-1">
-            <CardTitle className="text-2xl font-bold text-center text-foreground">Welcome back</CardTitle>
+            <CardTitle className="text-2xl font-bold text-center text-foreground">
+              Welcome back
+            </CardTitle>
             <CardDescription className="text-center text-muted-foreground">
               Sign in to your StarBit account
             </CardDescription>
@@ -186,7 +198,9 @@ export default function LoginPage() {
                     placeholder="you@example.com"
                     className="pl-10 bg-background border-input text-foreground"
                     value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    onChange={(e) =>
+                      setFormData({ ...formData, email: e.target.value })
+                    }
                     required
                   />
                 </div>
@@ -197,22 +211,34 @@ export default function LoginPage() {
                   <Label htmlFor="password" className="text-foreground">
                     Password
                   </Label>
-                  <Dialog open={isResetDialogOpen} onOpenChange={setIsResetDialogOpen}>
+                  <Dialog
+                    open={isResetDialogOpen}
+                    onOpenChange={setIsResetDialogOpen}
+                  >
                     <DialogTrigger asChild>
-                      <button type="button" className="text-sm text-secondary hover:underline">
+                      <button
+                        type="button"
+                        className="text-sm text-secondary hover:underline"
+                      >
                         Forgot Password?
                       </button>
                     </DialogTrigger>
                     <DialogContent className="bg-card border-border">
                       <DialogHeader>
-                        <DialogTitle className="text-foreground">Reset Password</DialogTitle>
+                        <DialogTitle className="text-foreground">
+                          Reset Password
+                        </DialogTitle>
                         <DialogDescription className="text-muted-foreground">
-                          Enter your email address and we'll send you a reset link
+                          Enter your email address and we'll send you a reset
+                          link
                         </DialogDescription>
                       </DialogHeader>
                       <div className="space-y-4 pt-4">
                         <div className="space-y-2">
-                          <Label htmlFor="reset-email" className="text-foreground">
+                          <Label
+                            htmlFor="reset-email"
+                            className="text-foreground"
+                          >
                             Email
                           </Label>
                           <Input
@@ -243,7 +269,9 @@ export default function LoginPage() {
                     placeholder="••••••••"
                     className="pl-10 bg-background border-input text-foreground"
                     value={formData.password}
-                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                    onChange={(e) =>
+                      setFormData({ ...formData, password: e.target.value })
+                    }
                     required
                   />
                 </div>
@@ -253,9 +281,14 @@ export default function LoginPage() {
                 <Checkbox
                   id="remember"
                   checked={formData.rememberMe}
-                  onCheckedChange={(checked) => setFormData({ ...formData, rememberMe: checked as boolean })}
+                  onCheckedChange={(checked) =>
+                    setFormData({ ...formData, rememberMe: checked as boolean })
+                  }
                 />
-                <label htmlFor="remember" className="text-sm text-muted-foreground cursor-pointer">
+                <label
+                  htmlFor="remember"
+                  className="text-sm text-muted-foreground cursor-pointer"
+                >
                   Stay logged in for 30 days
                 </label>
               </div>
@@ -270,7 +303,10 @@ export default function LoginPage() {
 
               <p className="text-center text-sm text-muted-foreground">
                 Don't have an account?{" "}
-                <Link href="/register" className="text-primary hover:underline font-medium">
+                <Link
+                  href="/register"
+                  className="text-primary hover:underline font-medium"
+                >
                   Sign Up
                 </Link>
               </p>
@@ -279,5 +315,5 @@ export default function LoginPage() {
         </Card>
       </main>
     </div>
-  )
+  );
 }

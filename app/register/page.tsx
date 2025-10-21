@@ -81,7 +81,7 @@ export default function RegisterPage() {
     }
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/register`, {
+      const res = await fetch(`${API_BASE_URL}/api/auth/register`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -103,8 +103,8 @@ export default function RegisterPage() {
       console.log('Response:', data); 
 
       // Store token and user data in cookies
-      if (data.token) {
-        Cookies.set("auth_token", data.token, { expires: 7 }); // Expires in 7 days
+      if (data.access_token) {
+        Cookies.set("auth_token", data.access_token, { expires: 7 }); // Expires in 7 days
         Cookies.set("user_data", JSON.stringify(data.user), { expires: 7 });
       }
 

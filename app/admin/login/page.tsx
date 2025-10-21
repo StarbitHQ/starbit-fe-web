@@ -61,6 +61,7 @@ export default function LoginPage() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "Accept": "application/json", // 🔥 THIS IS THE CRITICAL FIX!
         },
         body: JSON.stringify({
           email: formData.email,
@@ -76,11 +77,11 @@ export default function LoginPage() {
       const data = await res.json()
       console.log('Response:', data)
 
-      // Store token and user data in cookies
+      // Store token and admin data in cookies
       if (data.token) {
-        const cookieDays = formData.rememberMe ? 30 : 7 // 30 days if remember me, otherwise 7 days
+        const cookieDays = formData.rememberMe ? 30 : 7
         setCookie("auth_token", data.token, cookieDays)
-        setCookie("user_data", JSON.stringify(data.user), cookieDays)
+        setCookie("admin_data", JSON.stringify(data.admin), cookieDays) // Changed from user to admin
       }
 
       toast({
@@ -90,8 +91,9 @@ export default function LoginPage() {
       })
 
       // Redirect to dashboard
-      router.push("/dashboard")
+      router.push("/admin/dashboard")
     } catch (error: any) {
+      console.error('Login error:', error)
       toast({
         title: "Login failed",
         description: error.message || "Invalid email or password",
@@ -119,6 +121,7 @@ export default function LoginPage() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "Accept": "application/json", // Added this too
         },
         body: JSON.stringify({
           email: resetEmail,
