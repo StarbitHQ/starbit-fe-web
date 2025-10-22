@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { NavHeader } from "@/components/nav-header"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -18,11 +18,42 @@ type KYCStatus = "not-started" | "pending" | "approved" | "rejected"
 export default function KYCPage() {
   const { toast } = useToast()
   const [kycStatus, setKycStatus] = useState<KYCStatus>("not-started")
+  const [rejectionReason, setRejectionReason] = useState<string | null>(null)
   const [idFile, setIdFile] = useState<File | null>(null)
   const [selfieFile, setSelfieFile] = useState<File | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
 
-  const rejectionReason = "The ID document provided is not clear enough. Please upload a higher quality image."
+  useEffect(() => {
+    const fetchKYCStatus = async () => {
+      try {
+        const response = await fetch('/api/kyc/status', {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            // Add auth headers if needed, e.g., Authorization: `Bearer ${token}`
+          },
+        })
+        if (!response.ok) {
+          throw new Error('Failed to fetch KYC status')
+        }
+        const data = await response.json()
+        setKycStatus(data.status)
+        setRejectionReason(data.rejection_reason || null)
+      } catch (error) {
+        console.error('Error fetching KYC status:', error)
+        toast({
+          title: "Error",
+          description: "Failed to load KYC status. Please try again.",
+          variant: "destructive",
+        })
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchKYCStatus()
+  }, [])
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, type: "id" | "selfie") => {
     const file = e.target.files?.[0]
@@ -52,16 +83,42 @@ export default function KYCPage() {
     }
 
     setIsSubmitting(true)
-    // Simulate API call
-    setTimeout(() => {
+
+    const formData = new FormData()
+    formData.append('id_file', idFile)
+    formData.append('selfie_file', selfieFile)
+
+    try {
+      const response = await fetch('/api/kyc/submit', {
+        method: 'POST',
+        body: formData,
+        // Add auth headers if needed, e.g., headers: { Authorization: `Bearer ${token}` }
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.message || 'Submission failed')
+      }
+
       setKycStatus("pending")
+      setRejectionReason(null)
+      setIdFile(null)
+      setSelfieFile(null)
       toast({
         title: "KYC submitted!",
         description: "Your documents are being reviewed. This usually takes 24-48 hours.",
         className: "bg-primary text-primary-foreground",
       })
+    } catch (error: any) {
+      console.error('Error submitting KYC:', error)
+      toast({
+        title: "Submission failed",
+        description: error.message || "Please try again later.",
+        variant: "destructive",
+      })
+    } finally {
       setIsSubmitting(false)
-    }, 2000)
+    }
   }
 
   const getStatusBadge = () => {
@@ -95,6 +152,14 @@ export default function KYCPage() {
           </Badge>
         )
     }
+  }
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <p className="text-foreground">Loading...</p>
+      </div>
+    )
   }
 
   return (
@@ -134,7 +199,7 @@ export default function KYCPage() {
             <XCircle className="h-4 w-4 text-destructive" />
             <AlertDescription className="text-foreground">
               <p className="font-semibold mb-1">Verification Rejected</p>
-              <p className="text-sm">{rejectionReason}</p>
+              <p className="text-sm">{rejectionReason || "Unknown reason. Please contact support."}</p>
             </AlertDescription>
           </Alert>
         )}
@@ -166,7 +231,7 @@ export default function KYCPage() {
                       accept="image/*,.pdf"
                       onChange={(e) => handleFileChange(e, "id")}
                       className="hidden"
-                      disabled={kycStatus === "approved" || kycStatus === "pending"}
+                      disabled={kycStatus === "approved" || kycStatus === "pending" || isSubmitting}
                     />
                     <label htmlFor="id-upload" className="cursor-pointer">
                       <Upload className="h-8 w-8 text-primary mx-auto mb-2" />
@@ -193,7 +258,7 @@ export default function KYCPage() {
                       accept="image/*"
                       onChange={(e) => handleFileChange(e, "selfie")}
                       className="hidden"
-                      disabled={kycStatus === "approved" || kycStatus === "pending"}
+                      disabled={kycStatus === "approved" || kycStatus === "pending" || isSubmitting}
                     />
                     <label htmlFor="selfie-upload" className="cursor-pointer">
                       <Camera className="h-8 w-8 text-secondary mx-auto mb-2" />
