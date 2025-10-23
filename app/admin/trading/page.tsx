@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { PlusCircle, DollarSign, TrendingUp, Activity, CheckCircle2, Users, Shield, MessageSquare, Clock } from "lucide-react";
+import { PlusCircle, DollarSign, TrendingUp, Activity, CheckCircle2, Users, Shield, MessageSquare, Clock, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
@@ -42,6 +42,13 @@ interface ActiveUser {
   active_trades_count: number;
 }
 
+interface Stats {
+  total_pairs: number;
+  active_pairs: number;
+  avg_min_investment: number;
+  avg_return_percentage: number;
+}
+
 interface FormData {
   coingecko_id: string;
   quote_symbol: "USDT" | "BTC" | "ETH";
@@ -59,9 +66,15 @@ export default function AdminTradingPairsPage() {
   const [user, setUser] = useState<any>(null);
   const [tradingPairs, setTradingPairs] = useState<TradingPair[]>([]);
   const [activeUsers, setActiveUsers] = useState<ActiveUser[]>([]);
+  const [stats, setStats] = useState<Stats>({
+    total_pairs: 0,
+    active_pairs: 0,
+    avg_min_investment: 0,
+    avg_return_percentage: 0,
+  });
   const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
   const [fetchingPrices, setFetchingPrices] = useState(false);
-  const [fetchingUsers, setFetchingUsers] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const usersPerPage = 5;
@@ -86,32 +99,50 @@ export default function AdminTradingPairsPage() {
       }
     }
 
-    // Fetch trading pairs and active users
-    fetchTradingPairs();
+    // Fetch initial data
+    fetchAllData();
+  }, []);
+
+  useEffect(() => {
+    // Fetch active users when page changes
     fetchActiveUsers(currentPage);
   }, [currentPage]);
+
+  const fetchAllData = async () => {
+    await Promise.all([
+      fetchTradingPairs(),
+      fetchStats(),
+      fetchActiveUsers(currentPage),
+    ]);
+  };
+
+  const getAuthHeaders = () => {
+    const token = Cookies.get("auth_token");
+    if (!token) {
+      throw new Error("No authentication token found. Please log in.");
+    }
+    return {
+      Authorization: `Bearer ${token}`,
+    };
+  };
 
   const fetchTradingPairs = async () => {
     setLoading(true);
     try {
-      const token = Cookies.get("auth_token");
-      if (!token) {
-        throw new Error("No authentication token found. Please log in.");
-      }
-      const response = await axios.get(`${API_BASE_URL}/trading-pairs`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+      const response = await axios.get(`${API_BASE_URL}/api/admin/trading-pairs`, {
+        headers: getAuthHeaders(),
       });
 
-      console.log(response)
-      const pairs = response.data.data || [];
-      setTradingPairs(pairs);
-      await fetchCurrentPrices(pairs);
+      if (response.data.success) {
+        const pairs = response.data.data || [];
+        setTradingPairs(pairs);
+        // Fetch prices on client side
+        await fetchCurrentPrices(pairs);
+      }
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message || "Failed to fetch trading pairs. Please check your authentication.",
+        description: error.response?.data?.error || "Failed to fetch trading pairs",
         variant: "destructive",
       });
     } finally {
@@ -119,7 +150,23 @@ export default function AdminTradingPairsPage() {
     }
   };
 
+  const fetchStats = async () => {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/api/admin/trading-pairs/stats`, {
+        headers: getAuthHeaders(),
+      });
+
+      if (response.data.success) {
+        setStats(response.data.data);
+      }
+    } catch (error: any) {
+      console.error("Error fetching stats:", error);
+    }
+  };
+
   const fetchCurrentPrices = async (pairs: TradingPair[]) => {
+    if (pairs.length === 0) return;
+    
     setFetchingPrices(true);
     try {
       const ids = pairs.map((pair) => pair.coingecko_id).join(",");
@@ -129,6 +176,7 @@ export default function AdminTradingPairsPage() {
           ids,
         },
       });
+      
       const priceMap = new Map(
         response.data.map((coin: any) => [
           coin.id,
@@ -138,8 +186,9 @@ export default function AdminTradingPairsPage() {
           },
         ])
       );
-      setTradingPairs(
-        pairs.map((pair) => ({
+      
+      setTradingPairs((prevPairs) =>
+        prevPairs.map((pair) => ({
           ...pair,
           current_price: priceMap.get(pair.coingecko_id)?.current_price,
           price_change_24h: priceMap.get(pair.coingecko_id)?.price_change_24h,
@@ -147,9 +196,9 @@ export default function AdminTradingPairsPage() {
       );
     } catch (error) {
       toast({
-        title: "Error",
-        description: "Failed to fetch current prices from CoinGecko.",
-        variant: "destructive",
+        title: "Warning",
+        description: "Failed to fetch current prices from CoinGecko",
+        variant: "default",
       });
     } finally {
       setFetchingPrices(false);
@@ -157,66 +206,115 @@ export default function AdminTradingPairsPage() {
   };
 
   const fetchActiveUsers = async (page: number) => {
-    setFetchingUsers(true);
     try {
-      const token = Cookies.get("auth_token");
-      if (!token) {
-        throw new Error("No authentication token found. Please log in.");
-      }
       const response = await axios.get(`${API_BASE_URL}/api/admin/active-users`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers: getAuthHeaders(),
         params: {
           page,
           per_page: usersPerPage,
         },
       });
-      const users = response.data.data || [];
-      setActiveUsers(users);
-      setTotalPages(response.data.meta?.last_page || 1);
+
+      if (response.data.success) {
+        setActiveUsers(response.data.data || []);
+        setTotalPages(response.data.meta?.last_page || 1);
+      }
     } catch (error: any) {
       setActiveUsers([]);
-      toast({
-        title: "No Users Found",
-        description: "No users on trades yet.",
-        variant: "default",
-      });
-    } finally {
-      setFetchingUsers(false);
+      // Don't show error toast for empty users list
+      if (error.response?.status !== 404) {
+        console.error("Error fetching active users:", error);
+      }
     }
   };
 
   const onSubmit = async (data: FormData) => {
-    setLoading(true);
+    setSubmitting(true);
     try {
-      const token = Cookies.get("auth_token");
-      if (!token) {
-        throw new Error("No authentication token found. Please log in.");
+      // First verify the coin exists
+      const verifyResponse = await axios.get(
+        `${API_BASE_URL}/api/admin/verify-coin/${data.coingecko_id}`,
+        { headers: getAuthHeaders() }
+      );
+
+      if (!verifyResponse.data.success) {
+        throw new Error("Invalid CoinGecko ID");
       }
-      const response = await axios.get(`${API_BASE_URL}/api/coins/${data.coingecko_id}`);
-      if (response.data) {
-        const postResponse = await axios.post(`${API_BASE_URL}/api/admin/trading-pairs`, data, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
+
+      // Create the trading pair
+      const response = await axios.post(
+        `${API_BASE_URL}/api/admin/trading-pairs`,
+        data,
+        { headers: getAuthHeaders() }
+      );
+
+      if (response.data.success) {
         toast({
           title: "Success",
-          description: "Trading pair created successfully.",
+          description: "Trading pair created successfully",
           className: "bg-primary text-primary-foreground",
         });
-        setTradingPairs((prev) => [...prev, postResponse.data.data]);
+        
         reset();
+        await fetchAllData();
       }
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.response?.data?.error || "Failed to create trading pair.",
+        description: error.response?.data?.error || "Failed to create trading pair",
         variant: "destructive",
       });
     } finally {
-      setLoading(false);
+      setSubmitting(false);
+    }
+  };
+
+  const handleDeletePair = async (id: number) => {
+    if (!confirm("Are you sure you want to delete this trading pair?")) return;
+
+    try {
+      const response = await axios.delete(
+        `${API_BASE_URL}/api/admin/trading-pairs/${id}`,
+        { headers: getAuthHeaders() }
+      );
+
+      if (response.data.success) {
+        toast({
+          title: "Success",
+          description: "Trading pair deleted successfully",
+        });
+        await fetchAllData();
+      }
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.response?.data?.error || "Failed to delete trading pair",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleToggleActive = async (id: number, currentStatus: boolean) => {
+    try {
+      const response = await axios.put(
+        `${API_BASE_URL}/api/admin/trading-pairs/${id}`,
+        { is_active: !currentStatus },
+        { headers: getAuthHeaders() }
+      );
+
+      if (response.data.success) {
+        toast({
+          title: "Success",
+          description: `Trading pair ${!currentStatus ? "activated" : "deactivated"}`,
+        });
+        await fetchAllData();
+      }
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.response?.data?.error || "Failed to update trading pair",
+        variant: "destructive",
+      });
     }
   };
 
@@ -229,11 +327,11 @@ export default function AdminTradingPairsPage() {
   const activeTrades = tradingPairs.filter((pair) => pair.is_active);
 
   // Stats for the dashboard
-  const stats = [
-    { label: "Total Trading Pairs", value: tradingPairs.length, icon: Activity, color: "text-primary" },
-    { label: "Active Pairs", value: activeTrades.length, icon: TrendingUp, color: "text-secondary" },
-    { label: "Average Min Investment", value: tradingPairs.length ? `$${Math.round(tradingPairs.reduce((sum, pair) => sum + pair.min_investment, 0) / tradingPairs.length)}` : "$0", icon: DollarSign, color: "text-primary" },
-    { label: "Average Return %", value: tradingPairs.length ? `${Math.round(tradingPairs.reduce((sum, pair) => sum + (pair.min_return_percentage + pair.max_return_percentage) / 2, 0) / tradingPairs.length)}%` : "0%", icon: TrendingUp, color: "text-secondary" },
+  const displayStats = [
+    { label: "Total Trading Pairs", value: stats.total_pairs, icon: Activity, color: "text-primary" },
+    { label: "Active Pairs", value: stats.active_pairs, icon: TrendingUp, color: "text-secondary" },
+    { label: "Average Min Investment", value: `$${Math.round(stats.avg_min_investment)}`, icon: DollarSign, color: "text-primary" },
+    { label: "Average Return %", value: `${Math.round(stats.avg_return_percentage)}%`, icon: TrendingUp, color: "text-secondary" },
   ];
 
   return (
@@ -244,14 +342,14 @@ export default function AdminTradingPairsPage() {
         {/* Welcome Section */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-foreground mb-2">
-            Welcome back, {user?.name || "Admin"}
+            {user?.name || "Admin"}
           </h1>
           <p className="text-muted-foreground">Manage trading pairs and monitor market activity</p>
         </div>
 
         {/* Stats Grid */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-8">
-          {stats.map((stat) => (
+          {displayStats.map((stat) => (
             <Card key={stat.label} className="bg-card border-border">
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
@@ -259,7 +357,7 @@ export default function AdminTradingPairsPage() {
                     <p className="text-sm text-muted-foreground mb-1">{stat.label}</p>
                     <p className="text-2xl font-bold text-foreground">{stat.value}</p>
                   </div>
-                  <div className={`p-3 rounded-lg bg-${stat.color}/10`}>
+                  <div className={`p-3 rounded-lg bg-muted`}>
                     <stat.icon className={`h-6 w-6 ${stat.color}`} />
                   </div>
                 </div>
@@ -290,10 +388,10 @@ export default function AdminTradingPairsPage() {
                       id="coingecko_id"
                       placeholder="e.g., bitcoin"
                       className="pl-10 bg-background border-input text-foreground"
-                      {...register("coingecko_id", { required: true, pattern: /^[a-z0-9-]+$/ })}
+                      {...register("coingecko_id", { required: "CoinGecko ID is required", pattern: { value: /^[a-z0-9-]+$/, message: "Invalid CoinGecko ID format" } })}
                     />
                     {errors.coingecko_id && (
-                      <p className="text-sm text-destructive">Invalid CoinGecko ID</p>
+                      <p className="text-sm text-destructive mt-1">{errors.coingecko_id.message}</p>
                     )}
                   </div>
                 </div>
@@ -313,9 +411,6 @@ export default function AdminTradingPairsPage() {
                       <SelectItem value="ETH">ETH</SelectItem>
                     </SelectContent>
                   </Select>
-                  {errors.quote_symbol && (
-                    <p className="text-sm text-destructive">Quote symbol is required</p>
-                  )}
                 </div>
 
                 <div className="space-y-2">
@@ -325,12 +420,13 @@ export default function AdminTradingPairsPage() {
                     <Input
                       id="min_investment"
                       type="number"
+                      step="0.01"
                       placeholder="0"
                       className="pl-10 bg-background border-input text-foreground"
-                      {...register("min_investment", { required: true, min: 0 })}
+                      {...register("min_investment", { required: "Minimum investment is required", min: { value: 0, message: "Minimum investment must be >= 0" }, valueAsNumber: true })}
                     />
                     {errors.min_investment && (
-                      <p className="text-sm text-destructive">Minimum investment must be >= 0</p>
+                      <p className="text-sm text-destructive mt-1">{errors.min_investment.message}</p>
                     )}
                   </div>
                 </div>
@@ -342,17 +438,17 @@ export default function AdminTradingPairsPage() {
                     <Input
                       id="max_investment"
                       type="number"
+                      step="0.01"
                       placeholder="0"
                       className="pl-10 bg-background border-input text-foreground"
                       {...register("max_investment", {
-                        required: true,
-                        validate: (value, formValues) => value > formValues.min_investment,
+                        required: "Maximum investment is required",
+                        valueAsNumber: true,
+                        validate: (value, formValues) => value > formValues.min_investment || "Max investment must be greater than min investment",
                       })}
                     />
                     {errors.max_investment && (
-                      <p className="text-sm text-destructive">
-                        Max investment must be greater than min investment
-                      </p>
+                      <p className="text-sm text-destructive mt-1">{errors.max_investment.message}</p>
                     )}
                   </div>
                 </div>
@@ -364,12 +460,18 @@ export default function AdminTradingPairsPage() {
                     <Input
                       id="min_return_percentage"
                       type="number"
+                      step="0.01"
                       placeholder="0"
                       className="pl-10 bg-background border-input text-foreground"
-                      {...register("min_return_percentage", { required: true, min: 0, max: 100 })}
+                      {...register("min_return_percentage", {
+                        required: "Minimum return percentage is required",
+                        min: { value: 0, message: "Must be >= 0" },
+                        max: { value: 1000000000, message: "Must be <= 1000000000" },
+                        valueAsNumber: true,
+                      })}
                     />
                     {errors.min_return_percentage && (
-                      <p className="text-sm text-destructive">Must be between 0 and 100</p>
+                      <p className="text-sm text-destructive mt-1">{errors.min_return_percentage.message}</p>
                     )}
                   </div>
                 </div>
@@ -381,19 +483,19 @@ export default function AdminTradingPairsPage() {
                     <Input
                       id="max_return_percentage"
                       type="number"
+                      step="0.01"
                       placeholder="0"
                       className="pl-10 bg-background border-input text-foreground"
                       {...register("max_return_percentage", {
-                        required: true,
-                        min: 0,
-                        max: 100,
-                        validate: (value, formValues) => value >= formValues.min_return_percentage,
+                        required: "Maximum return percentage is required",
+                        min: { value: 0, message: "Must be >= 0" },
+                        max: { value: 100, message: "Must be <= 100" },
+                        valueAsNumber: true,
+                        validate: (value, formValues) => value >= formValues.min_return_percentage || "Max return must be >= min return",
                       })}
                     />
                     {errors.max_return_percentage && (
-                      <p className="text-sm text-destructive">
-                        Must be between 0 and 100, >= min return
-                      </p>
+                      <p className="text-sm text-destructive mt-1">{errors.max_return_percentage.message}</p>
                     )}
                   </div>
                 </div>
@@ -407,10 +509,14 @@ export default function AdminTradingPairsPage() {
                       type="number"
                       placeholder="1"
                       className="pl-10 bg-background border-input text-foreground"
-                      {...register("investment_duration", { required: true, min: 1 })}
+                      {...register("investment_duration", {
+                        required: "Investment duration is required",
+                        min: { value: 1, message: "Must be at least 1 day" },
+                        valueAsNumber: true,
+                      })}
                     />
                     {errors.investment_duration && (
-                      <p className="text-sm text-destructive">Must be at least 1 day</p>
+                      <p className="text-sm text-destructive mt-1">{errors.investment_duration.message}</p>
                     )}
                   </div>
                 </div>
@@ -432,17 +538,20 @@ export default function AdminTradingPairsPage() {
                     type="number"
                     placeholder="0"
                     className="bg-background border-input text-foreground"
-                    {...register("sort_order", { min: 0 })}
+                    {...register("sort_order", { min: { value: 0, message: "Sort order must be >= 0" }, valueAsNumber: true })}
                   />
+                  {errors.sort_order && (
+                    <p className="text-sm text-destructive mt-1">{errors.sort_order.message}</p>
+                  )}
                 </div>
 
                 <Button
                   type="submit"
                   className="w-full bg-primary text-primary-foreground hover:bg-primary/90 gap-2"
-                  disabled={loading}
+                  disabled={submitting}
                 >
                   <PlusCircle className="h-4 w-4" />
-                  {loading ? "Adding Pair..." : "Add Trading Pair"}
+                  {submitting ? "Adding Pair..." : "Add Trading Pair"}
                 </Button>
               </form>
             </CardContent>
@@ -460,9 +569,7 @@ export default function AdminTradingPairsPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {fetchingUsers ? (
-                <p className="text-muted-foreground">Loading...</p>
-              ) : activeUsers.length === 0 ? (
+              {activeUsers.length === 0 ? (
                 <p className="text-muted-foreground">No users on trades yet.</p>
               ) : (
                 <>
@@ -486,39 +593,41 @@ export default function AdminTradingPairsPage() {
                       </div>
                     ))}
                   </div>
-                  <div className="flex justify-between items-center mt-4">
-                    <Button
-                      variant="outline"
-                      disabled={currentPage === 1}
-                      onClick={() => handlePageChange(currentPage - 1)}
-                      className="bg-transparent"
-                    >
-                      Previous
-                    </Button>
-                    <p className="text-sm text-muted-foreground">
-                      Page {currentPage} of {totalPages}
-                    </p>
-                    <Button
-                      variant="outline"
-                      disabled={currentPage === totalPages}
-                      onClick={() => handlePageChange(currentPage + 1)}
-                      className="bg-transparent"
-                    >
-                      Next
-                    </Button>
-                  </div>
+                  {totalPages > 1 && (
+                    <div className="flex justify-between items-center mt-4">
+                      <Button
+                        variant="outline"
+                        disabled={currentPage === 1}
+                        onClick={() => handlePageChange(currentPage - 1)}
+                        className="bg-transparent"
+                      >
+                        Previous
+                      </Button>
+                      <p className="text-sm text-muted-foreground">
+                        Page {currentPage} of {totalPages}
+                      </p>
+                      <Button
+                        variant="outline"
+                        disabled={currentPage === totalPages}
+                        onClick={() => handlePageChange(currentPage + 1)}
+                        className="bg-transparent"
+                      >
+                        Next
+                      </Button>
+                    </div>
+                  )}
                 </>
               )}
             </CardContent>
           </Card>
 
           {/* Quick Actions */}
-          <Card className="lg:col-span-2 bg-card border-border">
+          <Card className="lg:col-span-3 bg-card border-border">
             <CardHeader>
               <CardTitle className="text-foreground">Quick Actions</CardTitle>
               <CardDescription className="text-muted-foreground">Navigate to key admin features</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-3">
+            <CardContent className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <Link href="/admin/users">
                 <Button variant="outline" className="w-full justify-start gap-2 bg-transparent">
                   <Users className="h-4 w-4 text-primary" />
@@ -568,33 +677,56 @@ export default function AdminTradingPairsPage() {
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
                         <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-                          <span className="text-sm font-bold text-primary">{pair.base_symbol[0]}</span>
+                          {pair.base_icon_url ? (
+                            <img src={pair.base_icon_url} alt={pair.base_symbol} className="h-8 w-8 rounded-full" />
+                          ) : (
+                            <span className="text-sm font-bold text-primary">{pair.base_symbol[0]}</span>
+                          )}
                         </div>
                         <div>
                           <p className="font-semibold text-foreground">{pair.base_name}</p>
                           <p className="text-sm text-muted-foreground">{pair.base_symbol}/{pair.quote_symbol}</p>
                         </div>
                       </div>
-                      <div className="text-right space-y-1">
-                        <p className="font-semibold text-foreground">{fetchingPrices ? "Fetching..." : pair.current_price?.toFixed(2) ?? "N/A"} USD</p>
-                        <p className={`text-sm ${pair.price_change_24h && pair.price_change_24h >= 0 ? "text-primary" : "text-destructive"}`}>
-                          {fetchingPrices ? "Fetching..." : pair.price_change_24h ? `${pair.price_change_24h.toFixed(2)}%` : "N/A"}
-                        </p>
-                        <Badge
-                          variant={pair.is_active ? "default" : "secondary"}
-                          className={
-                            pair.is_active
-                              ? "bg-primary/10 text-primary hover:bg-primary/20"
-                              : "bg-secondary/10 text-secondary hover:bg-secondary/20"
-                          }
-                        >
-                          {pair.is_active ? "Active" : "Inactive"}
-                        </Badge>
+                      <div className="text-right space-y-1 flex items-center gap-3">
+                        <div>
+                          <p className="font-semibold text-foreground">
+                            {fetchingPrices ? "..." : pair.current_price ? `${pair.current_price.toFixed(2)}` : "N/A"}
+                          </p>
+                          <p className={`text-sm ${pair.price_change_24h && pair.price_change_24h >= 0 ? "text-green-500" : "text-red-500"}`}>
+                            {fetchingPrices ? "..." : pair.price_change_24h ? `${pair.price_change_24h > 0 ? "+" : ""}${pair.price_change_24h.toFixed(2)}%` : "N/A"}
+                          </p>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleToggleActive(pair.id, pair.is_active)}
+                          >
+                            <Badge
+                              variant={pair.is_active ? "default" : "secondary"}
+                              className={
+                                pair.is_active
+                                  ? "bg-primary/10 text-primary hover:bg-primary/20"
+                                  : "bg-secondary/10 text-secondary hover:bg-secondary/20"
+                              }
+                            >
+                              {pair.is_active ? "Active" : "Inactive"}
+                            </Badge>
+                          </Button>
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => handleDeletePair(pair.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </div>
                     </div>
-                    <div className="mt-2 grid grid-cols-2 gap-2 text-sm text-muted-foreground">
-                      <p>Min Investment: ${pair.min_investment.toFixed(2)}</p>
-                      <p>Max Investment: ${pair.max_investment.toFixed(2)}</p>
+                    <div className="mt-3 grid grid-cols-2 md:grid-cols-4 gap-2 text-sm text-muted-foreground">
+                      <p>Min Investment: ${pair.min_investment}</p>
+                      <p>Max Investment: ${pair.max_investment}</p> 
                       <p>Return: {pair.min_return_percentage}% - {pair.max_return_percentage}%</p>
                       <p>Duration: {pair.investment_duration} day{pair.investment_duration !== 1 ? "s" : ""}</p>
                     </div>
@@ -626,7 +758,11 @@ export default function AdminTradingPairsPage() {
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
                         <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-                          <span className="text-sm font-bold text-primary">{pair.base_symbol[0]}</span>
+                          {pair.base_icon_url ? (
+                            <img src={pair.base_icon_url} alt={pair.base_symbol} className="h-8 w-8 rounded-full" />
+                          ) : (
+                            <span className="text-sm font-bold text-primary">{pair.base_symbol[0]}</span>
+                          )}
                         </div>
                         <div>
                           <p className="font-semibold text-foreground">{pair.base_name}</p>
@@ -634,15 +770,17 @@ export default function AdminTradingPairsPage() {
                         </div>
                       </div>
                       <div className="text-right space-y-1">
-                        <p className="font-semibold text-foreground">{fetchingPrices ? "Fetching..." : pair.current_price?.toFixed(2) ?? "N/A"} USD</p>
-                        <p className={`text-sm ${pair.price_change_24h && pair.price_change_24h >= 0 ? "text-primary" : "text-destructive"}`}>
-                          {fetchingPrices ? "Fetching..." : pair.price_change_24h ? `${pair.price_change_24h.toFixed(2)}%` : "N/A"}
+                        <p className="font-semibold text-foreground">
+                          {fetchingPrices ? "..." : pair.current_price ? `${pair.current_price.toFixed(2)}` : "N/A"}
+                        </p>
+                        <p className={`text-sm ${pair.price_change_24h && pair.price_change_24h >= 0 ? "text-green-500" : "text-red-500"}`}>
+                          {fetchingPrices ? "..." : pair.price_change_24h ? `${pair.price_change_24h > 0 ? "+" : ""}${pair.price_change_24h.toFixed(2)}%` : "N/A"}
                         </p>
                       </div>
                     </div>
-                    <div className="mt-2 grid grid-cols-2 gap-2 text-sm text-muted-foreground">
-                      <p>Min Investment: ${pair.min_investment.toFixed(2)}</p>
-                      <p>Max Investment: ${pair.max_investment.toFixed(2)}</p>
+                    <div className="mt-3 grid grid-cols-2 md:grid-cols-4 gap-2 text-sm text-muted-foreground">
+                      <p>Min Investment: ${pair.min_investment}</p>
+                      <p>Max Investment: ${pair.max_investment}</p> 
                       <p>Return: {pair.min_return_percentage}% - {pair.max_return_percentage}%</p>
                       <p>Duration: {pair.investment_duration} day{pair.investment_duration !== 1 ? "s" : ""}</p>
                     </div>
