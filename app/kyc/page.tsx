@@ -1,125 +1,159 @@
-"use client"
+"use client";
 
-import type React from "react"
+import type React from "react";
 
-import { useState, useEffect } from "react"
-import { NavHeader } from "@/components/nav-header"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Label } from "@/components/ui/label"
-import { Badge } from "@/components/ui/badge"
-import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Progress } from "@/components/ui/progress"
-import { Shield, Upload, CheckCircle2, XCircle, Clock, AlertCircle, FileText, Camera } from "lucide-react"
-import { useToast } from "@/hooks/use-toast"
+import { useState, useEffect } from "react";
+import { NavHeader } from "@/components/nav-header";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Progress } from "@/components/ui/progress";
+import {
+  Shield,
+  Upload,
+  CheckCircle2,
+  XCircle,
+  Clock,
+  AlertCircle,
+  FileText,
+  Camera,
+} from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { API_BASE_URL } from "@/lib/api";
 
-type KYCStatus = "not-started" | "pending" | "approved" | "rejected"
+type KYCStatus = "not-started" | "pending" | "approved" | "rejected";
 
 export default function KYCPage() {
-  const { toast } = useToast()
-  const [kycStatus, setKycStatus] = useState<KYCStatus>("not-started")
-  const [rejectionReason, setRejectionReason] = useState<string | null>(null)
-  const [idFile, setIdFile] = useState<File | null>(null)
-  const [selfieFile, setSelfieFile] = useState<File | null>(null)
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [isLoading, setIsLoading] = useState(true)
+  const { toast } = useToast();
+  const [kycStatus, setKycStatus] = useState<KYCStatus>("not-started");
+  const [rejectionReason, setRejectionReason] = useState<string | null>(null);
+  const [idFile, setIdFile] = useState<File | null>(null);
+  const [selfieFile, setSelfieFile] = useState<File | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const getCookie = (name: string): string | null => {
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; ${name}=`);
+    if (parts.length === 2) return parts.pop()?.split(";").shift() || null;
+    return null;
+  };
 
   useEffect(() => {
     const fetchKYCStatus = async () => {
       try {
-        const response = await fetch('/api/kyc/status', {
-          method: 'GET',
+        const token = getCookie("auth_token");
+
+        const response = await fetch(`${API_BASE_URL}/api/kyc/status`, {
+          method: "GET",
           headers: {
-            'Content-Type': 'application/json',
-            // Add auth headers if needed, e.g., Authorization: `Bearer ${token}`
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
           },
-        })
+        });
         if (!response.ok) {
-          throw new Error('Failed to fetch KYC status')
+          throw new Error("Failed to fetch KYC status");
         }
-        const data = await response.json()
-        setKycStatus(data.status)
-        setRejectionReason(data.rejection_reason || null)
+        const data = await response.json();
+        setKycStatus(data.status);
+        setRejectionReason(data.rejection_reason || null);
       } catch (error) {
-        console.error('Error fetching KYC status:', error)
+        console.error("Error fetching KYC status:", error);
         toast({
           title: "Error",
           description: "Failed to load KYC status. Please try again.",
           variant: "destructive",
-        })
+        });
       } finally {
-        setIsLoading(false)
+        setIsLoading(false);
       }
-    }
+    };
 
-    fetchKYCStatus()
-  }, [])
+    fetchKYCStatus();
+  }, []);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, type: "id" | "selfie") => {
-    const file = e.target.files?.[0]
+  const handleFileChange = (
+    e: React.ChangeEvent<HTMLInputElement>,
+    type: "id" | "selfie"
+  ) => {
+    const file = e.target.files?.[0];
     if (file) {
       if (type === "id") {
-        setIdFile(file)
+        setIdFile(file);
       } else {
-        setSelfieFile(file)
+        setSelfieFile(file);
       }
       toast({
         title: "File selected",
         description: `${file.name} ready to upload`,
         className: "bg-primary text-primary-foreground",
-      })
+      });
     }
-  }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+    e.preventDefault();
     if (!idFile || !selfieFile) {
       toast({
         title: "Missing files",
         description: "Please upload both ID and selfie",
         variant: "destructive",
-      })
-      return
+      });
+      return;
     }
 
-    setIsSubmitting(true)
+    setIsSubmitting(true);
 
-    const formData = new FormData()
-    formData.append('id_file', idFile)
-    formData.append('selfie_file', selfieFile)
+    const formData = new FormData();
+    formData.append("id_file", idFile);
+    formData.append("selfie_file", selfieFile);
 
     try {
-      const response = await fetch('/api/kyc/submit', {
-        method: 'POST',
+      const token = getCookie("auth_token");
+
+      const response = await fetch(`${API_BASE_URL}/api/kyc/submit`, {
+        method: "POST",
         body: formData,
-        // Add auth headers if needed, e.g., headers: { Authorization: `Bearer ${token}` }
-      })
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "application/json",
+        },
+      });
 
       if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.message || 'Submission failed')
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Submission failed");
       }
 
-      setKycStatus("pending")
-      setRejectionReason(null)
-      setIdFile(null)
-      setSelfieFile(null)
+      setKycStatus("pending");
+      setRejectionReason(null);
+      setIdFile(null);
+      setSelfieFile(null);
       toast({
         title: "KYC submitted!",
-        description: "Your documents are being reviewed. This usually takes 24-48 hours.",
+        description:
+          "Your documents are being reviewed. This usually takes 24-48 hours.",
         className: "bg-primary text-primary-foreground",
-      })
+      });
     } catch (error: any) {
-      console.error('Error submitting KYC:', error)
+      console.error("Error submitting KYC:", error);
       toast({
         title: "Submission failed",
         description: error.message || "Please try again later.",
         variant: "destructive",
-      })
+      });
     } finally {
-      setIsSubmitting(false)
+      setIsSubmitting(false);
     }
-  }
+  };
 
   const getStatusBadge = () => {
     switch (kycStatus) {
@@ -129,37 +163,37 @@ export default function KYCPage() {
             <CheckCircle2 className="h-3 w-3" />
             Approved
           </Badge>
-        )
+        );
       case "pending":
         return (
           <Badge className="bg-secondary/10 text-secondary hover:bg-secondary/20 gap-1">
             <Clock className="h-3 w-3" />
             Pending Review
           </Badge>
-        )
+        );
       case "rejected":
         return (
           <Badge className="bg-destructive/10 text-destructive hover:bg-destructive/20 gap-1">
             <XCircle className="h-3 w-3" />
             Rejected
           </Badge>
-        )
+        );
       default:
         return (
           <Badge variant="outline" className="gap-1">
             <AlertCircle className="h-3 w-3" />
             Not Started
           </Badge>
-        )
+        );
     }
-  }
+  };
 
   if (isLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <p className="text-foreground">Loading...</p>
       </div>
-    )
+    );
   }
 
   return (
@@ -169,10 +203,14 @@ export default function KYCPage() {
       <main className="container mx-auto px-4 py-8 max-w-4xl">
         <div className="mb-8">
           <div className="flex items-center justify-between mb-2">
-            <h1 className="text-3xl font-bold text-foreground">KYC Verification</h1>
+            <h1 className="text-3xl font-bold text-foreground">
+              KYC Verification
+            </h1>
             {getStatusBadge()}
           </div>
-          <p className="text-muted-foreground">Verify your identity to unlock full trading features</p>
+          <p className="text-muted-foreground">
+            Verify your identity to unlock full trading features
+          </p>
         </div>
 
         {/* Status Alert */}
@@ -180,7 +218,8 @@ export default function KYCPage() {
           <Alert className="mb-6 bg-primary/10 border-primary/20">
             <CheckCircle2 className="h-4 w-4 text-primary" />
             <AlertDescription className="text-foreground">
-              Your account is verified! You now have access to all trading features.
+              Your account is verified! You now have access to all trading
+              features.
             </AlertDescription>
           </Alert>
         )}
@@ -189,7 +228,8 @@ export default function KYCPage() {
           <Alert className="mb-6 bg-secondary/10 border-secondary/20">
             <Clock className="h-4 w-4 text-secondary" />
             <AlertDescription className="text-foreground">
-              Your documents are being reviewed. We'll notify you once the verification is complete.
+              Your documents are being reviewed. We'll notify you once the
+              verification is complete.
             </AlertDescription>
           </Alert>
         )}
@@ -199,7 +239,9 @@ export default function KYCPage() {
             <XCircle className="h-4 w-4 text-destructive" />
             <AlertDescription className="text-foreground">
               <p className="font-semibold mb-1">Verification Rejected</p>
-              <p className="text-sm">{rejectionReason || "Unknown reason. Please contact support."}</p>
+              <p className="text-sm">
+                {rejectionReason || "Unknown reason. Please contact support."}
+              </p>
             </AlertDescription>
           </Alert>
         )}
@@ -231,15 +273,22 @@ export default function KYCPage() {
                       accept="image/*,.pdf"
                       onChange={(e) => handleFileChange(e, "id")}
                       className="hidden"
-                      disabled={kycStatus === "approved" || kycStatus === "pending" || isSubmitting}
+                      disabled={
+                        kycStatus === "approved" ||
+                        kycStatus === "pending" ||
+                        isSubmitting
+                      }
                     />
                     <label htmlFor="id-upload" className="cursor-pointer">
                       <Upload className="h-8 w-8 text-primary mx-auto mb-2" />
                       <p className="text-sm font-medium text-foreground mb-1">
-                        {idFile ? idFile.name : "Click to upload or drag and drop"}
+                        {idFile
+                          ? idFile.name
+                          : "Click to upload or drag and drop"}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        Passport, Driver's License, or National ID (PNG, JPG, PDF up to 10MB)
+                        Passport, Driver's License, or National ID (PNG, JPG,
+                        PDF up to 10MB)
                       </p>
                     </label>
                   </div>
@@ -258,12 +307,18 @@ export default function KYCPage() {
                       accept="image/*"
                       onChange={(e) => handleFileChange(e, "selfie")}
                       className="hidden"
-                      disabled={kycStatus === "approved" || kycStatus === "pending" || isSubmitting}
+                      disabled={
+                        kycStatus === "approved" ||
+                        kycStatus === "pending" ||
+                        isSubmitting
+                      }
                     />
                     <label htmlFor="selfie-upload" className="cursor-pointer">
                       <Camera className="h-8 w-8 text-secondary mx-auto mb-2" />
                       <p className="text-sm font-medium text-foreground mb-1">
-                        {selfieFile ? selfieFile.name : "Click to upload or drag and drop"}
+                        {selfieFile
+                          ? selfieFile.name
+                          : "Click to upload or drag and drop"}
                       </p>
                       <p className="text-xs text-muted-foreground">
                         Clear photo of you holding your ID (PNG, JPG up to 10MB)
@@ -305,17 +360,32 @@ export default function KYCPage() {
             {/* Verification Progress */}
             <Card className="bg-card border-border">
               <CardHeader>
-                <CardTitle className="text-foreground text-lg">Verification Status</CardTitle>
+                <CardTitle className="text-foreground text-lg">
+                  Verification Status
+                </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div>
                   <div className="flex justify-between text-sm mb-2">
                     <span className="text-muted-foreground">Progress</span>
                     <span className="font-semibold text-foreground">
-                      {kycStatus === "approved" ? "100%" : kycStatus === "pending" ? "50%" : "0%"}
+                      {kycStatus === "approved"
+                        ? "100%"
+                        : kycStatus === "pending"
+                        ? "50%"
+                        : "0%"}
                     </span>
                   </div>
-                  <Progress value={kycStatus === "approved" ? 100 : kycStatus === "pending" ? 50 : 0} className="h-2" />
+                  <Progress
+                    value={
+                      kycStatus === "approved"
+                        ? 100
+                        : kycStatus === "pending"
+                        ? 50
+                        : 0
+                    }
+                    className="h-2"
+                  />
                 </div>
 
                 <div className="space-y-2">
@@ -325,7 +395,9 @@ export default function KYCPage() {
                     ) : (
                       <div className="h-4 w-4 rounded-full border-2 border-muted" />
                     )}
-                    <span className="text-sm text-foreground">Documents Submitted</span>
+                    <span className="text-sm text-foreground">
+                      Documents Submitted
+                    </span>
                   </div>
                   <div className="flex items-center gap-2">
                     {kycStatus === "approved" ? (
@@ -335,7 +407,9 @@ export default function KYCPage() {
                     ) : (
                       <div className="h-4 w-4 rounded-full border-2 border-muted" />
                     )}
-                    <span className="text-sm text-foreground">Under Review</span>
+                    <span className="text-sm text-foreground">
+                      Under Review
+                    </span>
                   </div>
                   <div className="flex items-center gap-2">
                     {kycStatus === "approved" ? (
@@ -352,35 +426,53 @@ export default function KYCPage() {
             {/* Benefits */}
             <Card className="bg-gradient-to-br from-primary/10 via-card to-secondary/10 border-primary/20">
               <CardHeader>
-                <CardTitle className="text-foreground text-lg">Verification Benefits</CardTitle>
+                <CardTitle className="text-foreground text-lg">
+                  Verification Benefits
+                </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
                 <div className="flex items-start gap-2">
                   <CheckCircle2 className="h-4 w-4 text-primary mt-0.5" />
                   <div>
-                    <p className="text-sm font-medium text-foreground">Higher Trading Limits</p>
-                    <p className="text-xs text-muted-foreground">Trade up to $50,000 per day</p>
+                    <p className="text-sm font-medium text-foreground">
+                      Higher Trading Limits
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Trade up to $50,000 per day
+                    </p>
                   </div>
                 </div>
                 <div className="flex items-start gap-2">
                   <CheckCircle2 className="h-4 w-4 text-primary mt-0.5" />
                   <div>
-                    <p className="text-sm font-medium text-foreground">Priority Support</p>
-                    <p className="text-xs text-muted-foreground">Get help faster from our team</p>
+                    <p className="text-sm font-medium text-foreground">
+                      Priority Support
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Get help faster from our team
+                    </p>
                   </div>
                 </div>
                 <div className="flex items-start gap-2">
                   <CheckCircle2 className="h-4 w-4 text-primary mt-0.5" />
                   <div>
-                    <p className="text-sm font-medium text-foreground">Lower Fees</p>
-                    <p className="text-xs text-muted-foreground">Enjoy reduced trading fees</p>
+                    <p className="text-sm font-medium text-foreground">
+                      Lower Fees
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Enjoy reduced trading fees
+                    </p>
                   </div>
                 </div>
                 <div className="flex items-start gap-2">
                   <CheckCircle2 className="h-4 w-4 text-primary mt-0.5" />
                   <div>
-                    <p className="text-sm font-medium text-foreground">Advanced Features</p>
-                    <p className="text-xs text-muted-foreground">Access to premium tools</p>
+                    <p className="text-sm font-medium text-foreground">
+                      Advanced Features
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Access to premium tools
+                    </p>
                   </div>
                 </div>
               </CardContent>
@@ -389,5 +481,5 @@ export default function KYCPage() {
         </div>
       </main>
     </div>
-  )
+  );
 }
