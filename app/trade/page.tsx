@@ -96,7 +96,7 @@ export default function TradingDashboard() {
             setCurrentPage={setCurrentPage}
             fetchData={fetchData}
           />
-          <QuickActions />
+          {/* <QuickActions /> */}
         </div>
         {completedTrades.length > 0 && (
           <CompletedTrades

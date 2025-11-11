@@ -1,12 +1,12 @@
-"use client"
+"use client";
 
-import Link from "next/link"
-import { usePathname, useRouter } from "next/navigation"
-import { StarBitLogo } from "./starbit-logo"
-import { Button } from "./ui/button"
-import { Menu, X, User, LogOut } from "lucide-react"
-import { useState } from "react"
-import { useToast } from "@/hooks/use-toast"
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+import { StarBitLogo } from "./starbit-logo";
+import { Button } from "./ui/button";
+import { Menu, X, User, LogOut, Settings } from "lucide-react"; // Added Settings icon
+import { useState } from "react";
+import { useToast } from "@/hooks/use-toast";
 
 // Helper function to delete cookie
 function deleteCookie(name: string) {
@@ -14,44 +14,44 @@ function deleteCookie(name: string) {
 }
 
 export function NavHeader({ isAuthenticated = false }: { isAuthenticated?: boolean }) {
-  const pathname = usePathname()
-  const router = useRouter()
-  const { toast } = useToast()
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const pathname = usePathname();
+  const router = useRouter();
+  const { toast } = useToast();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const navLinks = isAuthenticated
     ? [
         { href: "/admin/dashboard", label: "Dashboard" },
-        { href: "/admin/trading", label: "Trading"},
+        { href: "/admin/trading", label: "Trading" },
         { href: "/admin/p2p", label: "P2P Trading" },
         { href: "/admin/users", label: "Users" },
         { href: "/admin/kyc", label: "KYC" },
         { href: "/admin/support", label: "Support" },
       ]
-    : []
+    : [];
 
   const handleLogout = () => {
     // Delete auth cookies
-    deleteCookie("auth_token")
-    deleteCookie("user_data")
+    deleteCookie("auth_token");
+    deleteCookie("user_data");
 
     // Show logout success message
     toast({
       title: "Logged out successfully",
       description: "You have been logged out of your account",
-    })
+    });
 
     // Close mobile menu if open
-    setMobileMenuOpen(false)
+    setMobileMenuOpen(false);
 
     // Redirect to login page
-    router.push("/login")
-  }
+    router.push("/login");
+  };
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container mx-auto flex h-16 items-center justify-between px-4">
-        <Link href={isAuthenticated ? "/dashboard" : "/"} className="flex items-center">
+        <Link href={isAuthenticated ? "/admin/dashboard" : "/"} className="flex items-center">
           <StarBitLogo />
         </Link>
 
@@ -80,9 +80,15 @@ export function NavHeader({ isAuthenticated = false }: { isAuthenticated?: boole
                   Profile
                 </Button>
               </Link>
-              <Button 
-                variant="outline" 
-                size="sm" 
+              <Link href="/admin/settings">
+                <Button variant="ghost" size="sm" className="gap-2">
+                  <Settings className="h-4 w-4" /> {/* Added Settings icon */}
+                  
+                </Button>
+              </Link>
+              <Button
+                variant="outline"
+                size="sm"
                 className="gap-2 bg-transparent"
                 onClick={handleLogout}
               >
@@ -107,7 +113,11 @@ export function NavHeader({ isAuthenticated = false }: { isAuthenticated?: boole
         </div>
 
         {/* Mobile Menu Button */}
-        <button className="md:hidden p-2" onClick={() => setMobileMenuOpen(!mobileMenuOpen)} aria-label="Toggle menu">
+        <button
+          className="md:hidden p-2"
+          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+          aria-label="Toggle menu"
+        >
           {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
         </button>
       </div>
@@ -132,9 +142,9 @@ export function NavHeader({ isAuthenticated = false }: { isAuthenticated?: boole
               {isAuthenticated ? (
                 <>
                   <Link href="/profile">
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       className="gap-2 justify-start w-full"
                       onClick={() => setMobileMenuOpen(false)}
                     >
@@ -142,9 +152,20 @@ export function NavHeader({ isAuthenticated = false }: { isAuthenticated?: boole
                       Profile
                     </Button>
                   </Link>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
+                  <Link href="/admin/settings">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="gap-2 justify-start w-full"
+                      onClick={() => setMobileMenuOpen(false)}
+                    >
+                      <Settings className="h-4 w-4" /> {/* Added Settings icon */}
+                      Settings
+                    </Button>
+                  </Link>
+                  <Button
+                    variant="outline"
+                    size="sm"
                     className="gap-2 justify-start bg-transparent"
                     onClick={handleLogout}
                   >
@@ -160,7 +181,10 @@ export function NavHeader({ isAuthenticated = false }: { isAuthenticated?: boole
                     </Button>
                   </Link>
                   <Link href="/register">
-                    <Button size="sm" className="w-full bg-primary text-primary-foreground hover:bg-primary/90">
+                    <Button
+                      size="sm"
+                      className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
+                    >
                       Sign Up
                     </Button>
                   </Link>
@@ -171,5 +195,5 @@ export function NavHeader({ isAuthenticated = false }: { isAuthenticated?: boole
         </div>
       )}
     </header>
-  )
+  );
 }
