@@ -1,0 +1,43 @@
+name: Deploy to VPS
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy to VPS
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: 22
+          timeout: 30s
+          command_timeout: 10m
+          debug: true
+          script: |
+            echo "Connecting to ${{ secrets.DEPLOY_HOST }} as ${{ secrets.DEPLOY_USER }}..."
+            echo "Deploying Next.js app to: ${{ secrets.DEPLOY_PATH }}"
+
+            # Go to path and fail if not exist
+            cd "${{ secrets.DEPLOY_PATH }}" || { echo "ERROR: Directory not found!"; exit 1; }
+
+            # Verify deploy.sh exists
+            if [ ! -f "./deploy.sh" ]; then
+              echo "ERROR: deploy.sh not found!"
+              ls -la
+              exit 1
+            fi
+
+            # Make executable
+            chmod +x ./deploy.sh
+
+            # Run deploy
+            echo "Running deploy.sh..."
+            ./deploy.sh

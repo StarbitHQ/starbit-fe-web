@@ -8,7 +8,7 @@ import { TradeForm } from "./components/TradeForm";
 import { ActiveTrades } from "./components/ActiveTrades";
 import { CompletedTrades } from "./components/CompletedTrades";
 import { QuickActions } from "./components/QuickActions";
-import { useTradingData } from "./hooks/UseTradingData";
+import { useTradingData } from "./hooks/useTradingData";
 import { getCookie } from "./lib/utils";
 import { TradingPair, Trade, PortfolioSummary } from "./lib/types";
 
