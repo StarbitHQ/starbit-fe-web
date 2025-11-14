@@ -45,16 +45,22 @@ export const UserRow = ({ user, onView }: Props) => {
       </TableCell>
 
       <TableCell>
-        <Badge className={getKycBadge(user.kyc_status)}>{user.kyc_status}</Badge>
+        <Badge className={getKycBadge(user.kyc_status)}>
+          {user.kyc_status}
+        </Badge>
       </TableCell>
 
-      <TableCell className="font-semibold text-foreground">{user.balance}</TableCell>
+      <TableCell className="font-semibold text-foreground">
+        {user.balance}
+      </TableCell>
       <TableCell className="text-foreground">{user.total_trades}</TableCell>
       <TableCell className="text-foreground">{user.referral_count}</TableCell>
 
       <TableCell>
         <div className="text-sm">
-          <p className="text-foreground">{new Date(user.created_at).toLocaleDateString()}</p>
+          <p className="text-foreground">
+            {new Date(user.created_at).toLocaleDateString()}
+          </p>
           {user.last_login && (
             <p className="text-xs text-muted-foreground">
               Last: {new Date(user.last_login).toLocaleDateString()}
@@ -67,7 +73,8 @@ export const UserRow = ({ user, onView }: Props) => {
         <Button
           size="sm"
           onClick={() => onView(user.id)}
-          className="bg-primary text-primary-foreground hover:bg-primary/90 gap-1"
+          disabled={!user.id} 
+          className="..."
         >
           <Eye className="h-3 w-3" />
           View

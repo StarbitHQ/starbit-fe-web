@@ -6,7 +6,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { ArrowUpDown } from "lucide-react";
+import { ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import { UserRow } from "./UserRow";
 import type { User } from "../types/user";
 
@@ -21,6 +21,15 @@ interface Props {
 export const UsersTable = ({ users, sortField, sortDir, onSort, onView }: Props) => {
   const headerClass = "text-foreground";
 
+  const getSortIcon = (field: keyof User) => {
+    if (sortField !== field) return <ArrowUpDown className="h-3 w-3 opacity-50" />;
+    return sortDir === "asc" ? (
+      <ArrowUp className="h-3 w-3" />
+    ) : (
+      <ArrowDown className="h-3 w-3" />
+    );
+  };
+
   return (
     <div className="overflow-x-auto">
       <Table>
@@ -29,34 +38,34 @@ export const UsersTable = ({ users, sortField, sortDir, onSort, onView }: Props)
             <TableHead className={headerClass}>
               <Button variant="ghost" onClick={() => onSort("name")} className="gap-1">
                 User
-                <ArrowUpDown className="h-3 w-3" />
+                {getSortIcon("name")}
               </Button>
             </TableHead>
             <TableHead className={headerClass}>Contact</TableHead>
             <TableHead className={headerClass}>
               <Button variant="ghost" onClick={() => onSort("status")} className="gap-1">
                 Status
-                <ArrowUpDown className="h-3 w-3" />
+                {getSortIcon("status")}
               </Button>
             </TableHead>
             <TableHead className={headerClass}>KYC</TableHead>
             <TableHead className={headerClass}>
               <Button variant="ghost" onClick={() => onSort("balance")} className="gap-1">
                 Balance
-                <ArrowUpDown className="h-3 w-3" />
+                {getSortIcon("balance")}
               </Button>
             </TableHead>
             <TableHead className={headerClass}>
               <Button variant="ghost" onClick={() => onSort("total_trades")} className="gap-1">
                 Trades
-                <ArrowUpDown className="h-3 w-3" />
+                {getSortIcon("total_trades")}
               </Button>
             </TableHead>
             <TableHead className={headerClass}>Referrals</TableHead>
             <TableHead className={headerClass}>
               <Button variant="ghost" onClick={() => onSort("created_at")} className="gap-1">
                 Joined
-                <ArrowUpDown className="h-3 w-3" />
+                {getSortIcon("created_at")}
               </Button>
             </TableHead>
             <TableHead className={headerClass}>Actions</TableHead>
@@ -64,9 +73,17 @@ export const UsersTable = ({ users, sortField, sortDir, onSort, onView }: Props)
         </TableHeader>
 
         <TableBody>
-          {users.map((u) => (
-            <UserRow key={u.id} user={u} onView={onView} />
-          ))}
+          {users.length === 0 ? (
+            <TableRow>
+              <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
+                No users found
+              </TableCell>
+            </TableRow>
+          ) : (
+            users.map((u) => (
+              <UserRow key={u.id} user={u} onView={onView} />
+            ))
+          )}
         </TableBody>
       </Table>
     </div>
