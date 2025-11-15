@@ -92,7 +92,7 @@ export default function KYCAdminPage() {
 
     try {
       const authToken = Cookies.get("auth_token");
-      const response = await fetch(`/api/kyc/approve/${userId}`, {
+      const response = await fetch(`${API_BASE_URL}/api/admin/kyc/approve/${userId}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -130,7 +130,7 @@ export default function KYCAdminPage() {
 
     try {
       const authToken = Cookies.get("auth_token");
-      const response = await fetch(`/api/kyc/reject/${userId}`, {
+      const response = await fetch(`${API_BASE_URL}/api/admin/kyc/reject/${userId}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -233,7 +233,8 @@ export default function KYCAdminPage() {
                     <CardContent>
                       {selectedUser.kyc_id_path ? (
                         <Image
-                          src={selectedUser.kyc_id_path}
+                          // src={selectedUser.kyc_id_path}
+                          src={`${API_BASE_URL.replace(/\/$/, "")}/${selectedUser.kyc_id_path?.replace(/^\/+/, "")}`}
                           alt="KYC ID Document"
                           width={400}
                           height={300}
@@ -256,7 +257,8 @@ export default function KYCAdminPage() {
                     <CardContent>
                       {selectedUser.kyc_selfie_path ? (
                         <Image
-                          src={selectedUser.kyc_selfie_path}
+                          // src={selectedUser.kyc_selfie_path}
+                          src={`${API_BASE_URL.replace(/\/$/, "")}/${selectedUser.kyc_id_path?.replace(/^\/+/, "")}`}
                           alt="KYC Selfie"
                           width={400}
                           height={300}

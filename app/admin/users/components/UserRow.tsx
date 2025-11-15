@@ -7,7 +7,7 @@ import type { User } from "../types/user";
 
 interface Props {
   user: User;
-  onView: (id: number) => void;
+  onView: (user: User) => void;  
 }
 
 export const UserRow = ({ user, onView }: Props) => {
@@ -72,7 +72,7 @@ export const UserRow = ({ user, onView }: Props) => {
       <TableCell>
         <Button
           size="sm"
-          onClick={() => onView(user.id)}
+          onClick={() => onView(user)}
           disabled={!user.id} 
           className="..."
         >

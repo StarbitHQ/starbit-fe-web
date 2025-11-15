@@ -35,7 +35,7 @@ export default function AdminUsersPage() {
     open,
     fetchDetail,
     close,
-    refetch: refetchDetail, // <- this is the "refetchUser" we need
+    refetch: refetchDetail,
   } = useUserDetails();
 
   /* ---------- UI state ---------- */
@@ -141,7 +141,6 @@ export default function AdminUsersPage() {
   };
 
   const closeDialog = () => {
-    // setSelectedUser(null);
     close();
   };
 
@@ -233,13 +232,11 @@ export default function AdminUsersPage() {
         {/* User Details Dialog */}
         <UserDetailsDialog
           open={open} 
-          onOpenChange={(isOpen) => {
-            if (!isOpen) close(); 
-          }}
+          onOpenChange={(isOpen) => !isOpen && closeDialog()}
           user={detail} 
           onStatusChange={handleStatusChange}
           onViewUser={handleViewReferral}
-          refetchUser={refetchDetail}
+          refetchUser={refetchDetail} 
         />
       </main>
     </div>

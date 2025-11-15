@@ -36,8 +36,6 @@ interface Props {
   refetchUser?: () => void;
 }
 
-
-
 export const UserDetailsDialog = ({
   open,
   onOpenChange,
@@ -177,6 +175,17 @@ export const UserDetailsDialog = ({
             </CardContent>
           </Card>
 
+
+            {/* Quick Actions – now includes Promote to Admin */}
+          {/* Quick Actions – Spaced & Responsive */}
+
+          <QuickActions
+            userId={user.id}
+            currentBalance={user.balance}
+            isAdmin={user.type === "admin"}
+            onUserUpdate={handleUserUpdate}
+          />
+
           {/* Referral Summary */}
           <ReferralInfo user={user} onView={onViewUser} />
           {/* Tabs */}
@@ -209,13 +218,7 @@ export const UserDetailsDialog = ({
               </Card>
             </TabsContent>
           </Tabs>
-          {/* Quick Actions – now includes Promote to Admin */}
-          <QuickActions
-            userId={user.id}
-            currentBalance={user.balance}
-            isAdmin={user.type === "admin"}
-            onUserUpdate={handleUserUpdate}
-          />
+        
         </div>
       </DialogContent>
     </Dialog>

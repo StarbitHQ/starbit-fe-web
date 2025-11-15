@@ -1,12 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardContent,
-} from "@/components/ui/card";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
   Mail,
@@ -41,17 +36,27 @@ type Role = {
 };
 
 const emailSchema = z.object({
-  subject: z.string().min(1, "Subject is required").max(255, "Subject too long"),
-  message: z.string().min(5, "Message must be at least 5 characters").max(2000, "Message too long"),
+  subject: z
+    .string()
+    .min(1, "Subject is required")
+    .max(255, "Subject too long"),
+  message: z
+    .string()
+    .min(5, "Message must be at least 5 characters")
+    .max(2000, "Message too long"),
 });
 
 const balanceSchema = z.object({
   balance: z.coerce
     .number()
     .positive("Balance must be a positive number")
-    .refine((v) => !v.toString().includes(".") || v.toString().split(".")[1].length <= 2, {
-      message: "Max 2 decimal places",
-    }),
+    .refine(
+      (v) =>
+        !v.toString().includes(".") || v.toString().split(".")[1].length <= 2,
+      {
+        message: "Max 2 decimal places",
+      }
+    ),
 });
 
 const promoteSchema = z.object({
@@ -192,7 +197,8 @@ export const QuickActions = ({
       setTimeout(() => setActive(null), 1500);
     } catch (e: any) {
       setResult("error");
-      const msg = e.response?.data?.error || e.message || "Failed to promote user";
+      const msg =
+        e.response?.data?.error || e.message || "Failed to promote user";
       toast({ title: "Error", description: msg, variant: "destructive" });
     } finally {
       setLoading(false);
@@ -213,12 +219,13 @@ export const QuickActions = ({
         <CardTitle className="text-foreground">Quick Actions</CardTitle>
       </CardHeader>
 
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-8">
         {/* Action Buttons */}
-        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+        {/* ---------- Action Buttons ---------- */}
+        <div className="flex flex-wrap gap-3">
           <Button
             variant="outline"
-            className="justify-start gap-2"
+            className="flex-1 min-w-[140px] justify-center gap-2"
             onClick={() => setActive("email")}
             disabled={loading}
           >
@@ -228,7 +235,7 @@ export const QuickActions = ({
 
           <Button
             variant="outline"
-            className="justify-start gap-2"
+            className="flex-1 min-w-[140px] justify-center gap-2"
             onClick={() => setActive("balance")}
             disabled={loading}
           >
@@ -238,7 +245,7 @@ export const QuickActions = ({
 
           <Button
             variant="outline"
-            className="justify-start gap-2 text-red-500 hover:text-red-500"
+            className="flex-1 min-w-[140px] justify-center gap-2 text-red-500 hover:text-red-500"
             onClick={() => setActive("suspend")}
             disabled={loading}
           >
@@ -249,7 +256,7 @@ export const QuickActions = ({
           {!isAdmin && (
             <Button
               variant="outline"
-              className="justify-start gap-2 text-green-600 hover:text-green-600"
+              className="flex-1 min-w-[140px] justify-center gap-2 text-green-600 hover:text-green-600"
               onClick={() => setActive("promote")}
               disabled={loading}
             >
@@ -267,7 +274,10 @@ export const QuickActions = ({
               Send Email
             </h4>
 
-            <form onSubmit={emailForm.handleSubmit(handleEmail)} className="space-y-3">
+            <form
+              onSubmit={emailForm.handleSubmit(handleEmail)}
+              className="space-y-3"
+            >
               <div>
                 <input
                   type="text"
@@ -300,16 +310,34 @@ export const QuickActions = ({
 
               <div className="flex gap-2">
                 <Button type="submit" size="sm" disabled={loading}>
-                  {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Send"}
+                  {loading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    "Send"
+                  )}
                 </Button>
-                <Button type="button" variant="ghost" size="sm" onClick={closeForm} disabled={loading}>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={closeForm}
+                  disabled={loading}
+                >
                   Cancel
                 </Button>
               </div>
 
               {result && (
-                <div className={`flex items-center gap-1 text-sm ${result === "success" ? "text-green-600" : "text-red-600"}`}>
-                  {result === "success" ? <CheckCircle className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
+                <div
+                  className={`flex items-center gap-1 text-sm ${
+                    result === "success" ? "text-green-600" : "text-red-600"
+                  }`}
+                >
+                  {result === "success" ? (
+                    <CheckCircle className="h-4 w-4" />
+                  ) : (
+                    <XCircle className="h-4 w-4" />
+                  )}
                   {result === "success" ? "Sent!" : "Failed"}
                 </div>
               )}
@@ -325,7 +353,10 @@ export const QuickActions = ({
               Edit Balance
             </h4>
 
-            <form onSubmit={balanceForm.handleSubmit(handleBalance)} className="space-y-3">
+            <form
+              onSubmit={balanceForm.handleSubmit(handleBalance)}
+              className="space-y-3"
+            >
               <input
                 type="number"
                 step="0.01"
@@ -342,16 +373,34 @@ export const QuickActions = ({
 
               <div className="flex gap-2">
                 <Button type="submit" size="sm" disabled={loading}>
-                  {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Update"}
+                  {loading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    "Update"
+                  )}
                 </Button>
-                <Button type="button" variant="ghost" size="sm" onClick={closeForm} disabled={loading}>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={closeForm}
+                  disabled={loading}
+                >
                   Cancel
                 </Button>
               </div>
 
               {result && (
-                <div className={`flex items-center gap-1 text-sm ${result === "success" ? "text-green-600" : "text-red-600"}`}>
-                  {result === "success" ? <CheckCircle className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
+                <div
+                  className={`flex items-center gap-1 text-sm ${
+                    result === "success" ? "text-green-600" : "text-red-600"
+                  }`}
+                >
+                  {result === "success" ? (
+                    <CheckCircle className="h-4 w-4" />
+                  ) : (
+                    <XCircle className="h-4 w-4" />
+                  )}
                   {result === "success" ? "Updated!" : "Failed"}
                 </div>
               )}
@@ -368,21 +417,44 @@ export const QuickActions = ({
             </h4>
 
             <p className="text-sm text-muted-foreground">
-              This will immediately set the user status to <strong>suspended</strong>.
+              This will immediately set the user status to{" "}
+              <strong>suspended</strong>.
             </p>
 
             <div className="flex gap-2">
-              <Button variant="destructive" size="sm" onClick={handleSuspend} disabled={loading}>
-                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Confirm Suspend"}
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={handleSuspend}
+                disabled={loading}
+              >
+                {loading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  "Confirm Suspend"
+                )}
               </Button>
-              <Button variant="ghost" size="sm" onClick={closeForm} disabled={loading}>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={closeForm}
+                disabled={loading}
+              >
                 Cancel
               </Button>
             </div>
 
             {result && (
-              <div className={`flex items-center gap-1 text-sm ${result === "success" ? "text-green-600" : "text-red-600"}`}>
-                {result === "success" ? <CheckCircle className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
+              <div
+                className={`flex items-center gap-1 text-sm ${
+                  result === "success" ? "text-green-600" : "text-red-600"
+                }`}
+              >
+                {result === "success" ? (
+                  <CheckCircle className="h-4 w-4" />
+                ) : (
+                  <XCircle className="h-4 w-4" />
+                )}
                 {result === "success" ? "Suspended!" : "Failed"}
               </div>
             )}
@@ -397,7 +469,10 @@ export const QuickActions = ({
               Promote to Admin
             </h4>
 
-            <form onSubmit={promoteForm.handleSubmit(handlePromote)} className="space-y-3">
+            <form
+              onSubmit={promoteForm.handleSubmit(handlePromote)}
+              className="space-y-3"
+            >
               {fetchingRoles ? (
                 <div className="flex items-center justify-center py-4">
                   <Loader2 className="h-5 w-5 animate-spin" />
@@ -416,7 +491,8 @@ export const QuickActions = ({
                     <option value="">Select a role...</option>
                     {roles.map((role) => (
                       <option key={role.key} value={role.key}>
-                        {role.label} {role.description && `— ${role.description}`}
+                        {role.label}{" "}
+                        {role.description && `— ${role.description}`}
                       </option>
                     ))}
                   </select>
@@ -429,17 +505,39 @@ export const QuickActions = ({
               )}
 
               <div className="flex gap-2">
-                <Button type="submit" size="sm" disabled={loading || fetchingRoles || roles.length === 0}>
-                  {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Promote"}
+                <Button
+                  type="submit"
+                  size="sm"
+                  disabled={loading || fetchingRoles || roles.length === 0}
+                >
+                  {loading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    "Promote"
+                  )}
                 </Button>
-                <Button type="button" variant="ghost" size="sm" onClick={closeForm} disabled={loading}>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={closeForm}
+                  disabled={loading}
+                >
                   Cancel
                 </Button>
               </div>
 
               {result && (
-                <div className={`flex items-center gap-1 text-sm ${result === "success" ? "text-green-600" : "text-red-600"}`}>
-                  {result === "success" ? <CheckCircle className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
+                <div
+                  className={`flex items-center gap-1 text-sm ${
+                    result === "success" ? "text-green-600" : "text-red-600"
+                  }`}
+                >
+                  {result === "success" ? (
+                    <CheckCircle className="h-4 w-4" />
+                  ) : (
+                    <XCircle className="h-4 w-4" />
+                  )}
                   {result === "success" ? "Promoted!" : "Failed"}
                 </div>
               )}

@@ -15,7 +15,7 @@ interface Props {
   sortField: keyof User;
   sortDir: "asc" | "desc";
   onSort: (field: keyof User) => void;
-  onView: (id: number) => void;
+  onView: (user: User) => void;  
 }
 
 export const UsersTable = ({ users, sortField, sortDir, onSort, onView }: Props) => {
@@ -81,7 +81,7 @@ export const UsersTable = ({ users, sortField, sortDir, onSort, onView }: Props)
             </TableRow>
           ) : (
             users.map((u) => (
-              <UserRow key={u.id} user={u} onView={onView} />
+              <UserRow key={u.id} user={u} onView={onView} />  
             ))
           )}
         </TableBody>

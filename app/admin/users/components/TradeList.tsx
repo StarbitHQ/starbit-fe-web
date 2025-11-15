@@ -32,9 +32,9 @@ export const TradeList = ({ trades }: Props) => {
               )}
             </div>
             <div>
-              <p className="font-medium text-foreground">
+              {/* <p className="font-medium text-foreground">
                 {t.type.toUpperCase()} {t.pair}
-              </p>
+              </p> */}
               <p className="text-xs text-muted-foreground">
                 {t.amount} @ {t.price}
               </p>
