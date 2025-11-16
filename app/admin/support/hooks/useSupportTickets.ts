@@ -41,7 +41,6 @@ export const useSupportTickets = (): UseSupportTicketsResponse => {
 
       if (!res.ok) throw new Error("Failed to fetch support tickets");
       const data = await res.json();
-      console.log(data)
       setTickets(data.data.data || []); // Extract nested 'data.data' array
       setPagination({
         current_page: data.data.current_page,

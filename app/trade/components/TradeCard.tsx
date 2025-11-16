@@ -13,7 +13,6 @@ interface TradeCardProps {
 
 export function TradeCard({ trade, getProgress, handleCancelTrade, showCancelButton }: TradeCardProps) {
   // Debug log to verify data
-  console.log("TradeCard Data:", trade);
 
   // Fallback for tradingPair if missing
   const tradingPair = trade.tradingPair || { base_name: "Unknown Pair", base_symbol: "N/A", quote_symbol: "N/A", investment_duration: 0, base_icon_url: null };

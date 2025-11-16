@@ -34,7 +34,15 @@ export default function AdminDashboardPage() {
   const [recentTrades, setRecentTrades] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  
+  // Initialize userRole directly from cookies to avoid race condition
+  const [userRole, setUserRole] = useState<string | undefined>(() => {
+    const role = Cookies.get("user_role");
+    const cleanRole = role?.trim().replace(/^["']|["']$/g, ''); // Remove quotes and trim
+    return cleanRole;
+  });
 
+  // Fetch dashboard data
   useEffect(() => {
     const fetchAdminDashboardData = async () => {
       setIsLoading(true);
@@ -42,11 +50,13 @@ export default function AdminDashboardPage() {
 
       try {
         const authToken = Cookies.get("auth_token");
-        const userRole = Cookies.get("user_role");
         if (!authToken) {
           setError("Please log in as an admin to view the dashboard");
           return;
         }
+        
+        // Get fresh role from cookie at fetch time
+        const currentRole = Cookies.get("user_role")?.trim().replace(/^["']|["']$/g, '');
 
         // ────── DASHBOARD STATS ──────
         const dashboardRes = await fetch(
@@ -68,7 +78,7 @@ export default function AdminDashboardPage() {
         const pairsData = await pairsRes.json();
         if (!pairsData.success) throw new Error(pairsData.message);
 
-        // ────── SET STATS ──────
+        // ────── BASE STATS ──────
         const baseStats = [
           {
             label: "Total Users",
@@ -90,37 +100,54 @@ export default function AdminDashboardPage() {
           },
         ];
 
-        if (userRole === "super_admin") {
+        // ────── SUPERADMIN: ADD DEPOSITS ──────
+        if (currentRole === "superadmin") {
+          const deposits = Number(dashboardData.data.total_deposits ?? 0);
           baseStats.splice(1, 0, {
             label: "Total Deposits",
-            value: `$${dashboardData.data.total_deposits}`,
+            value: `${deposits.toFixed(2)}`,
             icon: DollarSign,
             color: "text-secondary",
           });
+        } else {
         }
 
         setStats(baseStats);
-        // ────── DAILY COINS (unchanged) ──────
-        const coins = await Promise.all(
-          ["bitcoin", "ethereum", "tether", "binancecoin", "solana"].map(
-            async (id) => {
-              const r = await fetch(
-                `${API_BASE_URL}/api/admin/verify-coin/${id}`,
-                {
-                  headers: { Authorization: `Bearer ${authToken}` },
-                }
-              );
-              if (!r.ok) return null;
-              const d = await r.json();
-              return d.success ? d.data : null;
+
+        // ────── COINS: RESILIENT FETCHING ──────
+        const coinIds = [
+          "bitcoin",
+          "ethereum",
+          "tether",
+          "binancecoin",
+          "solana",
+        ];
+        const coinPromises = coinIds.map(async (id) => {
+          try {
+            const r = await fetch(
+              `${API_BASE_URL}/api/admin/verify-coin/${id}`,
+              {
+                headers: { Authorization: `Bearer ${authToken}` },
+              }
+            );
+            if (!r.ok) {
+              console.warn(`Failed to fetch coin ${id}: ${r.status}`);
+              return null;
             }
-          )
-        );
+            const d = await r.json();
+            return d.success ? d.data : null;
+          } catch (err) {
+            console.error(`Error fetching coin ${id}:`, err);
+            return null;
+          }
+        });
+
+        const coins = await Promise.all(coinPromises);
 
         setDailyCoins(
           coins.filter(Boolean).map((c: any) => ({
             name: c.name,
-            symbol: c.symbol,
+            symbol: c.symbol.toUpperCase(),
             price: `$${c.current_price?.toFixed(2) ?? "N/A"}`,
             change: `${c.price_change_percentage_24h?.toFixed(2) ?? "0"}%`,
             positive: (c.price_change_percentage_24h ?? 0) >= 0,
@@ -128,7 +155,7 @@ export default function AdminDashboardPage() {
           }))
         );
 
-        // ────── RECENT TRADES (fixed) ──────
+        // ────── RECENT TRADES ──────
         const tradesRes = await fetch(
           `${API_BASE_URL}/api/admin/get-recent-trades`,
           {
@@ -138,7 +165,6 @@ export default function AdminDashboardPage() {
 
         if (tradesRes.ok) {
           const tradesJson = await tradesRes.json();
-
           if (tradesJson.success && Array.isArray(tradesJson.data)) {
             setRecentTrades(
               tradesJson.data.map((t: any) => ({
@@ -151,7 +177,6 @@ export default function AdminDashboardPage() {
                   hour: "numeric",
                   minute: "2-digit",
                 }),
-                // optional: show pair name from notes
                 coin:
                   t.notes?.match(/Investment in (.*?) \(/)?.[1] ?? "BTC/USDT",
               }))
@@ -164,16 +189,19 @@ export default function AdminDashboardPage() {
         }
       } catch (err: any) {
         setError(err.message ?? "Network error");
-        console.error(err);
+        console.error("Dashboard fetch error:", err);
       } finally {
         setIsLoading(false);
       }
     };
 
-    fetchAdminDashboardData();
-  }, []);
+    const authToken = Cookies.get("auth_token");
+    if (authToken) {
+      fetchAdminDashboardData();
+    }
+  }, []); // Remove userRole dependency
 
-  // ────── UI ──────
+  // ────── UI: LOADING ──────
   if (isLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -185,6 +213,7 @@ export default function AdminDashboardPage() {
     );
   }
 
+  // ────── UI: ERROR ──────
   if (error) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -199,6 +228,7 @@ export default function AdminDashboardPage() {
     );
   }
 
+  // ────── MAIN UI ──────
   return (
     <div className="min-h-screen bg-background">
       <NavHeader isAuthenticated />
@@ -229,7 +259,11 @@ export default function AdminDashboardPage() {
                     </p>
                   </div>
                   <div
-                    className={`p-3 rounded-lg bg-${s.color.split("-")[1]}/10`}
+                    className={`p-3 rounded-lg ${
+                      s.color === "text-secondary"
+                        ? "bg-secondary/10"
+                        : "bg-primary/10"
+                    }`}
                   >
                     <s.icon className={`h-6 w-6 ${s.color}`} />
                   </div>
@@ -253,38 +287,46 @@ export default function AdminDashboardPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {dailyCoins.map((c) => (
-                  <div
-                    key={c.symbol}
-                    className="flex items-center justify-between p-4 rounded-lg bg-muted/50"
-                  >
-                    <div className="flex items-center gap-3">
-                      <img
-                        src={c.image}
-                        alt={c.name}
-                        className="h-10 w-10 rounded-full object-cover"
-                      />
-                      <div>
+                {dailyCoins.length > 0 ? (
+                  dailyCoins.map((c) => (
+                    <div
+                      key={c.symbol}
+                      className="flex items-center justify-between p-4 rounded-lg bg-muted/50"
+                    >
+                      <div className="flex items-center gap-3">
+                        <img
+                          src={c.image}
+                          alt={c.name}
+                          className="h-10 w-10 rounded-full object-cover"
+                        />
+                        <div>
+                          <p className="font-semibold text-foreground">
+                            {c.name}
+                          </p>
+                          <p className="text-sm text-muted-foreground">
+                            {c.symbol}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-right">
                         <p className="font-semibold text-foreground">
-                          {c.name}
+                          {c.price}
                         </p>
-                        <p className="text-sm text-muted-foreground">
-                          {c.symbol}
+                        <p
+                          className={`text-sm ${
+                            c.positive ? "text-primary" : "text-destructive"
+                          }`}
+                        >
+                          {c.change}
                         </p>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <p className="font-semibold text-foreground">{c.price}</p>
-                      <p
-                        className={`text-sm ${
-                          c.positive ? "text-primary" : "text-destructive"
-                        }`}
-                      >
-                        {c.change}
-                      </p>
-                    </div>
-                  </div>
-                ))}
+                  ))
+                ) : (
+                  <p className="text-center text-muted-foreground py-8">
+                    No coin data available
+                  </p>
+                )}
               </div>
             </CardContent>
           </Card>

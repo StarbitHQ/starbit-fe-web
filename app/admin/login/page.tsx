@@ -75,7 +75,6 @@ export default function LoginPage() {
       }
 
       const data = await res.json()
-      console.log('Response:', data)
 
       // Store token and admin data in cookies
       if (data.token) {
