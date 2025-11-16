@@ -33,15 +33,11 @@ export default function LoginPage() {
   const router = useRouter();
   const { toast } = useToast();
 
-  // ──────────────────────────────────────────────────────
-  // Step handling
-  // ──────────────────────────────────────────────────────
+  
   type Step = "login" | "otp";
   const [step, setStep] = useState<Step>("login");
 
-  // ──────────────────────────────────────────────────────
-  // Login form
-  // ──────────────────────────────────────────────────────
+
   const [loginLoading, setLoginLoading] = useState(false);
   const [formData, setFormData] = useState({
     email: "",
@@ -49,34 +45,26 @@ export default function LoginPage() {
     rememberMe: false,
   });
 
-  // ──────────────────────────────────────────────────────
-  // OTP form
-  // ──────────────────────────────────────────────────────
+  
   const [otp, setOtp] = useState("");
   const [otpLoading, setOtpLoading] = useState(false);
   const [countdown, setCountdown] = useState(0);
   const [emailForOtp, setEmailForOtp] = useState("");
   const [tempToken, setTempToken] = useState("");
 
-  // ──────────────────────────────────────────────────────
-  // Password-reset dialog
-  // ──────────────────────────────────────────────────────
+
   const [resetEmail, setResetEmail] = useState("");
   const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
   const [resetLoading, setResetLoading] = useState(false);
 
-  // ──────────────────────────────────────────────────────
-  // Countdown timer (same logic as register page)
-  // ──────────────────────────────────────────────────────
+
   useEffect(() => {
     if (countdown <= 0) return;
     const timer = setInterval(() => setCountdown((c) => c - 1), 1000);
     return () => clearInterval(timer);
   }, [countdown]);
 
-  // ──────────────────────────────────────────────────────
-  // 1. Submit email + password → request OTP
-  // ──────────────────────────────────────────────────────
+ 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.email || !formData.password) {
@@ -126,9 +114,7 @@ export default function LoginPage() {
     }
   };
 
-  // ──────────────────────────────────────────────────────
-  // 2. Verify OTP → receive final access_token
-  // ──────────────────────────────────────────────────────
+  
   const handleVerifyOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     if (otp.length !== 6) {
@@ -158,17 +144,16 @@ export default function LoginPage() {
         throw new Error(data.message || "Verification failed");
       }
 
-      // ---- SUCCESS – store final token ----
       const days = formData.rememberMe ? 30 : 7;
       Cookies.set("auth_token", data.access_token, { expires: days });
       Cookies.set("user_data", JSON.stringify(data.user), { expires: days });
+      Cookies.set("user_role", JSON.stringify(data.userRole));
 
       toast({
         title: "Welcome back!",
         description: "You've successfully logged in",
       });
 
-      // Redirect
       if (data.user.type === "admin") {
         router.push("/admin/dashboard");
       } else {
@@ -185,9 +170,7 @@ export default function LoginPage() {
     }
   };
 
-  // ──────────────────────────────────────────────────────
-  // Resend OTP (uses the same endpoint as register)
-  // ──────────────────────────────────────────────────────
+
   const resendOtp = async () => {
     setOtpLoading(true);
     try {
