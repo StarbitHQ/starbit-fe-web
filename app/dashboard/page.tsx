@@ -1,10 +1,16 @@
 "use client";
 
 import { NavHeader } from "@/components/nav-header";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { API_BASE_URL } from "@/lib/api"
+import { API_BASE_URL } from "@/lib/api";
 
 import {
   TrendingUp,
@@ -65,9 +71,24 @@ export default function DashboardPage() {
           setDailyCoins(data.data.daily_coins);
           setRecentTrades(data.data.recent_trades);
           setStats([
-            { label: "Total Trades", value: data.data.stats.total_trades, icon: Activity, color: "text-primary" },
-            { label: "Referrals", value: data.data.stats.referrals, icon: Users, color: "text-primary" },
-            { label: "Total Volume", value: `$${parseFloat(data.data.stats.total_volume).toFixed(2)}`, icon: DollarSign, color: "text-secondary" },
+            {
+              label: "Total Trades",
+              value: data.data.stats.total_trades,
+              icon: Activity,
+              color: "text-primary",
+            },
+            {
+              label: "Referrals",
+              value: data.data.stats.referrals,
+              icon: Users,
+              color: "text-primary",
+            },
+            {
+              label: "Total Volume",
+              value: `$${parseFloat(data.data.stats.total_volume).toFixed(2)}`,
+              icon: DollarSign,
+              color: "text-secondary",
+            },
           ]);
 
           // Update cookies with latest user data
@@ -76,7 +97,9 @@ export default function DashboardPage() {
           setError(data.message || "Failed to load dashboard data");
         }
       } catch (err) {
-        setError("Network error. Please check your connection and try again.");
+        setError(
+          "Network error. Please check your connection and try again."
+        );
         console.error("Error fetching dashboard data:", err);
       } finally {
         setIsLoading(false);
@@ -86,6 +109,9 @@ export default function DashboardPage() {
     fetchDashboardData();
   }, []);
 
+  /* ------------------------------------------------------------------ */
+  /* Loading & Error States */
+  /* ------------------------------------------------------------------ */
   if (isLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -113,6 +139,9 @@ export default function DashboardPage() {
     );
   }
 
+  /* ------------------------------------------------------------------ */
+  /* Main Dashboard UI */
+  /* ------------------------------------------------------------------ */
   return (
     <div className="min-h-screen bg-background">
       <NavHeader isAuthenticated />
@@ -123,7 +152,9 @@ export default function DashboardPage() {
           <h1 className="text-3xl font-bold text-foreground mb-2">
             Welcome back, {user?.name || "User"}
           </h1>
-          <p className="text-muted-foreground">Here's what's happening with your trading today</p>
+          <p className="text-muted-foreground">
+            Here's what's happening with your trading today
+          </p>
           <div className="mt-4 flex items-center gap-4">
             <div className="flex items-center gap-2">
               <Wallet className="h-5 w-5 text-primary" />
@@ -132,7 +163,10 @@ export default function DashboardPage() {
               </p>
             </div>
             {user?.referral_code && (
-              <Badge variant="outline" className="bg-primary/10 text-primary">
+              <Badge
+                variant="outline"
+                className="bg-primary/10 text-primary"
+              >
                 Referral Code: {user.referral_code}
               </Badge>
             )}
@@ -142,15 +176,29 @@ export default function DashboardPage() {
         {/* Stats Grid */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 mb-8">
           {stats.map((stat) => (
-            <Card key={stat.label} className="bg-card border-border">
+            <Card
+              key={stat.label}
+              className="bg-card border-border"
+            >
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-muted-foreground mb-1">{stat.label}</p>
-                    <p className="text-2xl font-bold text-foreground">{stat.value}</p>
+                    <p className="text-sm text-muted-foreground mb-1">
+                      {stat.label}
+                    </p>
+                    <p className="text-2xl font-bold text-foreground">
+                      {stat.value}
+                    </p>
                   </div>
-                  <div className={`p-3 rounded-lg bg-${stat.color}/10`}>
-                    <stat.icon className={`h-6 w-6 ${stat.color}`} />
+                  <div
+                    className={`p-3 rounded-lg bg-${stat.color.replace(
+                      "text-",
+                      ""
+                    )}/10`}
+                  >
+                    <stat.icon
+                      className={`h-6 w-6 ${stat.color}`}
+                    />
                   </div>
                 </div>
               </CardContent>
@@ -159,7 +207,9 @@ export default function DashboardPage() {
         </div>
 
         <div className="grid gap-6 lg:grid-cols-3">
-          {/* Daily Trading Coins */}
+          {/* -------------------------------------------------------------- */}
+          {/* Daily Trading Coins – SAFE VERSION */}
+          {/* -------------------------------------------------------------- */}
           <Card className="lg:col-span-2 bg-card border-border">
             <CardHeader>
               <CardTitle className="text-foreground flex items-center gap-2">
@@ -170,44 +220,106 @@ export default function DashboardPage() {
                 Biggest gainers in the last 24 hours
               </CardDescription>
             </CardHeader>
+
             <CardContent>
-              <div className="space-y-4">
-                {dailyCoins.map((coin) => (
-                  <div key={coin.symbol} className="flex items-center justify-between p-4 rounded-lg bg-muted/50 hover:bg-muted/70 transition-colors">
-                    <div className="flex items-center gap-3">
-                      {/* CoinGecko Image */}
-                      <div className="relative h-10 w-10 rounded-full overflow-hidden bg-background flex-shrink-0">
-                        {coin.image ? (
-                          <Image
-                            src={coin.image}
-                            alt={coin.name}
-                            width={40}
-                            height={40}
-                            className="object-cover"
-                            unoptimized
-                          />
-                        ) : (
-                          <div className="h-full w-full bg-primary/10 flex items-center justify-center">
-                            <span className="text-sm font-bold text-primary">
-                              {coin.symbol[0]}
-                            </span>
+              {/* ---- SAFE RENDERING ---- */}
+              {Array.isArray(dailyCoins) && dailyCoins.length > 0 ? (
+                <div className="space-y-4">
+                  {dailyCoins.map((coin) => {
+                    // Defensive defaults
+                    const safeCoin = {
+                      symbol: coin?.symbol ?? "???",
+                      name: coin?.name ?? "Unknown",
+                      price: coin?.price ?? "$0.00",
+                      change: coin?.change ?? "0%",
+                      positive: !!coin?.positive,
+                      image:
+                        typeof coin?.image === "string"
+                          ? coin.image
+                          : null,
+                    };
+
+                    return (
+                      <div
+                        key={safeCoin.symbol}
+                        className="flex items-center justify-between p-4 rounded-lg bg-muted/50 hover:bg-muted/70 transition-colors"
+                      >
+                        <div className="flex items-center gap-3">
+                          {/* Coin image with fallback */}
+                          <div className="relative h-10 w-10 rounded-full overflow-hidden bg-background flex-shrink-0">
+                            {safeCoin.image ? (
+                              <Image
+                                src={safeCoin.image}
+                                alt={safeCoin.name}
+                                width={40}
+                                height={40}
+                                className="object-cover"
+                                unoptimized
+                                onError={(e) => {
+                                  e.currentTarget.style.display = "none";
+                                  (
+                                    e.currentTarget
+                                      .nextElementSibling as HTMLElement
+                                  )?.classList.remove("hidden");
+                                }}
+                              />
+                            ) : null}
+                            {/* Letter fallback */}
+                            <div
+                              className={`h-full w-full bg-primary/10 flex items-center justify-center ${
+                                safeCoin.image ? "hidden" : ""
+                              }`}
+                            >
+                              <span className="text-sm font-bold text-primary">
+                                {safeCoin.symbol[0]?.toUpperCase() ?? "?"}
+                              </span>
+                            </div>
                           </div>
-                        )}
+
+                          <div>
+                            <p className="font-semibold text-foreground">
+                              {safeCoin.name}
+                            </p>
+                            <p className="text-sm text-muted-foreground">
+                              {safeCoin.symbol}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="text-right">
+                          <p className="font-semibold text-foreground">
+                            {safeCoin.price}
+                          </p>
+                          <p
+                            className={`text-sm font-medium ${
+                              safeCoin.positive
+                                ? "text-green-600"
+                                : "text-red-600"
+                            }`}
+                          >
+                            {safeCoin.change}
+                          </p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="font-semibold text-foreground">{coin.name}</p>
-                        <p className="text-sm text-muted-foreground">{coin.symbol}</p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-semibold text-foreground">{coin.price}</p>
-                      <p className={`text-sm font-medium ${coin.positive ? "text-green-600" : "text-red-600"}`}>
-                        {coin.change}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                /* ---- FALLBACK UI ---- */
+                <div className="text-center py-8">
+                  <Bitcoin className="h-12 w-12 text-muted-foreground mx-auto mb-3 opacity-50" />
+                  <p className="text-muted-foreground mb-4">
+                    No coin data available right now.
+                  </p>
+                  <Link href="/trade">
+                    <Button className="bg-primary text-primary-foreground hover:bg-primary/90">
+                      Explore Trading
+                    </Button>
+                  </Link>
+                </div>
+              )}
+
+              {/* CTA – always visible */}
               <Link href="/trade">
                 <Button className="w-full mt-4 bg-primary text-primary-foreground hover:bg-primary/90 gap-2">
                   Start Trading
@@ -217,45 +329,61 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
 
+          {/* -------------------------------------------------------------- */}
           {/* Quick Actions */}
+          {/* -------------------------------------------------------------- */}
           <Card className="bg-card border-border">
             <CardHeader>
-              <CardTitle className="text-foreground">Quick Actions</CardTitle>
-              <CardDescription className="text-muted-foreground">Navigate to key features</CardDescription>
+              <CardTitle className="text-foreground">
+                Quick Actions
+              </CardTitle>
+              <CardDescription className="text-muted-foreground">
+                Navigate to key features
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               <Link href="/deposit">
-                <Button variant="outline" className="w-full justify-start gap-2 bg-transparent">
+                <Button
+                  variant="outline"
+                  className="w-full justify-start gap-2 bg-transparent"
+                >
                   <DollarSign className="h-4 w-4 text-primary" />
                   Deposit
                 </Button>
               </Link>
               <Link href="/withdraw">
-                <Button variant="outline" className="w-full justify-start gap-2 bg-transparent">
+                <Button
+                  variant="outline"
+                  className="w-full justify-start gap-2 bg-transparent"
+                >
                   <DollarSign className="h-4 w-4 text-secondary" />
                   Withdraw
                 </Button>
               </Link>
-              <Link href="/p2p">
-                <Button variant="outline" className="w-full justify-start gap-2 bg-transparent">
-                  <TrendingUp className="h-4 w-4 text-primary" />
-                  P2P Trading
-                </Button>
-              </Link>
+              
               <Link href="/referral">
-                <Button variant="outline" className="w-full justify-start gap-2 bg-transparent">
+                <Button
+                  variant="outline"
+                  className="w-full justify-start gap-2 bg-transparent"
+                >
                   <Users className="h-4 w-4 text-secondary" />
                   Referral Program
                 </Button>
               </Link>
               <Link href="/kyc">
-                <Button variant="outline" className="w-full justify-start gap-2 bg-transparent">
+                <Button
+                  variant="outline"
+                  className="w-full justify-start gap-2 bg-transparent"
+                >
                   <Shield className="h-4 w-4 text-primary" />
                   KYC Verification
                 </Button>
               </Link>
               <Link href="/support">
-                <Button variant="outline" className="w-full justify-start gap-2 bg-transparent">
+                <Button
+                  variant="outline"
+                  className="w-full justify-start gap-2 bg-transparent"
+                >
                   <MessageSquare className="h-4 w-4 text-secondary" />
                   Support Tickets
                 </Button>
@@ -264,18 +392,27 @@ export default function DashboardPage() {
           </Card>
         </div>
 
+        {/* -------------------------------------------------------------- */}
         {/* Recent Trades */}
+        {/* -------------------------------------------------------------- */}
         <Card className="mt-6 bg-card border-border">
           <CardHeader>
-            <CardTitle className="text-foreground">Recent Trades</CardTitle>
-            <CardDescription className="text-muted-foreground">Your latest trading activity</CardDescription>
+            <CardTitle className="text-foreground">
+              Recent Trades
+            </CardTitle>
+            <CardDescription className="text-muted-foreground">
+              Your latest trading activity
+            </CardDescription>
           </CardHeader>
           <CardContent>
             {recentTrades.length > 0 ? (
               <>
                 <div className="space-y-3">
                   {recentTrades.map((trade) => (
-                    <div key={trade.id} className="flex items-center justify-between p-4 rounded-lg bg-muted/50">
+                    <div
+                      key={trade.id}
+                      className="flex items-center justify-between p-4 rounded-lg bg-muted/50"
+                    >
                       <div className="flex items-center gap-3">
                         {trade.status === "completed" ? (
                           <CheckCircle2 className="h-5 w-5 text-primary" />
@@ -288,11 +425,17 @@ export default function DashboardPage() {
                           <p className="font-semibold text-foreground">
                             {trade.amount}
                           </p>
-                          <p className="text-sm text-muted-foreground">{trade.date}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {trade.date}
+                          </p>
                         </div>
                       </div>
                       <Badge
-                        variant={trade.status === "completed" ? "default" : "secondary"}
+                        variant={
+                          trade.status === "completed"
+                            ? "default"
+                            : "secondary"
+                        }
                         className={
                           trade.status === "completed"
                             ? "bg-primary/10 text-primary hover:bg-primary/20"
@@ -305,7 +448,10 @@ export default function DashboardPage() {
                   ))}
                 </div>
                 <Link href="/history">
-                  <Button variant="outline" className="w-full mt-4 bg-transparent">
+                  <Button
+                    variant="outline"
+                    className="w-full mt-4 bg-transparent"
+                  >
                     View All Trades
                   </Button>
                 </Link>
@@ -313,7 +459,9 @@ export default function DashboardPage() {
             ) : (
               <div className="text-center py-8">
                 <Activity className="h-12 w-12 text-muted-foreground mx-auto mb-3 opacity-50" />
-                <p className="text-muted-foreground mb-4">No trades yet</p>
+                <p className="text-muted-foreground mb-4">
+                  No trades yet
+                </p>
                 <Link href="/p2p">
                   <Button variant="default">Start Trading</Button>
                 </Link>

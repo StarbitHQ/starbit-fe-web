@@ -35,18 +35,23 @@ interface TradingPair {
   price_change_24h?: number;
 }
 
-interface ActiveUser {
-  id: number;
-  name: string;
-  email: string;
-  active_trades_count: number;
-}
-
 interface Stats {
   total_pairs: number;
   active_pairs: number;
   avg_min_investment: number;
   avg_return_percentage: number;
+}
+
+interface ActiveTrade {
+  id: number;
+  user_id: number;
+  trading_pair_id: number;
+  investment_amount: string;
+  expected_return: string;
+  status: "active" | "completed" | "cancelled";
+  started_at: string;
+  ends_at: string;
+  notes: string;
 }
 
 interface FormData {
@@ -65,7 +70,7 @@ export default function AdminTradingPairsPage() {
   const { toast } = useToast();
   const [user, setUser] = useState<any>(null);
   const [tradingPairs, setTradingPairs] = useState<TradingPair[]>([]);
-  const [activeUsers, setActiveUsers] = useState<ActiveUser[]>([]);
+  const [activeTrades, setActiveTrades] = useState<ActiveTrade[]>([]);
   const [stats, setStats] = useState<Stats>({
     total_pairs: 0,
     active_pairs: 0,
@@ -77,7 +82,7 @@ export default function AdminTradingPairsPage() {
   const [fetchingPrices, setFetchingPrices] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  const usersPerPage = 5;
+  const tradesPerPage = 5;
 
   const { register, handleSubmit, formState: { errors }, reset, setValue } = useForm<FormData>({
     defaultValues: {
@@ -88,7 +93,6 @@ export default function AdminTradingPairsPage() {
   });
 
   useEffect(() => {
-    // Fetch user data from cookies
     const userData = Cookies.get("user_data");
     if (userData) {
       try {
@@ -99,20 +103,18 @@ export default function AdminTradingPairsPage() {
       }
     }
 
-    // Fetch initial data
     fetchAllData();
   }, []);
 
   useEffect(() => {
-    // Fetch active users when page changes
-    fetchActiveUsers(currentPage);
+    fetchActiveTrades(currentPage);
   }, [currentPage]);
 
   const fetchAllData = async () => {
     await Promise.all([
       fetchTradingPairs(),
       fetchStats(),
-      fetchActiveUsers(currentPage),
+      fetchActiveTrades(currentPage),
     ]);
   };
 
@@ -136,7 +138,6 @@ export default function AdminTradingPairsPage() {
       if (response.data.success) {
         const pairs = response.data.data || [];
         setTradingPairs(pairs);
-        // Fetch prices on client side
         await fetchCurrentPrices(pairs);
       }
     } catch (error: any) {
@@ -205,25 +206,24 @@ export default function AdminTradingPairsPage() {
     }
   };
 
-  const fetchActiveUsers = async (page: number) => {
+  const fetchActiveTrades = async (page: number) => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/api/admin/active-users`, {
+      const response = await axios.get(`${API_BASE_URL}/api/admin/get-recent-trades`, {
         headers: getAuthHeaders(),
         params: {
           page,
-          per_page: usersPerPage,
+          per_page: tradesPerPage,
         },
       });
 
       if (response.data.success) {
-        setActiveUsers(response.data.data || []);
+        setActiveTrades(response.data.data || []);
         setTotalPages(response.data.meta?.last_page || 1);
       }
     } catch (error: any) {
-      setActiveUsers([]);
-      // Don't show error toast for empty users list
+      setActiveTrades([]);
       if (error.response?.status !== 404) {
-        console.error("Error fetching active users:", error);
+        console.error("Error fetching active trades:", error);
       }
     }
   };
@@ -231,7 +231,6 @@ export default function AdminTradingPairsPage() {
   const onSubmit = async (data: FormData) => {
     setSubmitting(true);
     try {
-      // First verify the coin exists
       const verifyResponse = await axios.get(
         `${API_BASE_URL}/api/admin/verify-coin/${data.coingecko_id}`,
         { headers: getAuthHeaders() }
@@ -241,7 +240,6 @@ export default function AdminTradingPairsPage() {
         throw new Error("Invalid CoinGecko ID");
       }
 
-      // Create the trading pair
       const response = await axios.post(
         `${API_BASE_URL}/api/admin/trading-pairs`,
         data,
@@ -324,9 +322,8 @@ export default function AdminTradingPairsPage() {
     }
   };
 
-  const activeTrades = tradingPairs.filter((pair) => pair.is_active);
+  const activeTradingPairs = tradingPairs.filter((pair) => pair.is_active);
 
-  // Stats for the dashboard
   const displayStats = [
     { label: "Total Trading Pairs", value: stats.total_pairs, icon: Activity, color: "text-primary" },
     { label: "Active Pairs", value: stats.active_pairs, icon: TrendingUp, color: "text-secondary" },
@@ -557,42 +554,70 @@ export default function AdminTradingPairsPage() {
             </CardContent>
           </Card>
 
-          {/* Active Users in Trades */}
+          {/* Active Trades Section */}
           <Card className="lg:col-span-2 bg-card border-border">
             <CardHeader>
               <CardTitle className="text-foreground flex items-center gap-2">
-                <Users className="h-5 w-5 text-primary" />
-                Active Users in Trades
+                <Activity className="h-5 w-5 text-primary" />
+                Active Trades
               </CardTitle>
               <CardDescription className="text-muted-foreground">
-                Users currently participating in active trades
+                Live trades currently running on the platform
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {activeUsers.length === 0 ? (
-                <p className="text-muted-foreground">No users on trades yet.</p>
+              {activeTrades.length === 0 ? (
+                <p className="text-muted-foreground">No active trades at the moment.</p>
               ) : (
                 <>
                   <div className="space-y-3">
-                    {activeUsers.map((user) => (
-                      <div key={user.id} className="flex items-center justify-between p-4 rounded-lg bg-muted/50">
+                    {activeTrades.map((trade) => (
+                      <div
+                        key={trade.id}
+                        className="flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-lg bg-muted/50 gap-3"
+                      >
+                        {/* Trade Info */}
                         <div className="flex items-center gap-3">
                           <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-                            <span className="text-sm font-bold text-primary">{user.name[0]}</span>
+                            <DollarSign className="h-5 w-5 text-primary" />
                           </div>
                           <div>
-                            <p className="font-semibold text-foreground">{user.name}</p>
-                            <p className="text-sm text-muted-foreground">{user.email}</p>
+                            <p className="font-semibold text-foreground">
+                              ${trade.investment_amount} → +{trade.expected_return}%
+                            </p>
+                            <p className="text-sm text-muted-foreground">{trade.notes}</p>
                           </div>
                         </div>
-                        <div className="text-right">
-                          <Badge className="bg-primary/10 text-primary hover:bg-primary/20">
-                            {user.active_trades_count} Active Trade{user.active_trades_count !== 1 ? "s" : ""}
+
+                        {/* Timing & Status */}
+                        <div className="text-right space-y-1">
+                          <p className="text-sm text-muted-foreground">
+                            Started: {new Date(trade.started_at).toLocaleString(undefined, {
+                              month: "short",
+                              day: "numeric",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </p>
+                          <p className="text-sm text-muted-foreground">
+                            Ends: {new Date(trade.ends_at).toLocaleString(undefined, {
+                              month: "short",
+                              day: "numeric",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </p>
+                          <Badge
+                            variant="default"
+                            className="bg-primary/10 text-primary hover:bg-primary/20"
+                          >
+                            {trade.status.toUpperCase()}
                           </Badge>
                         </div>
                       </div>
                     ))}
                   </div>
+
                   {totalPages > 1 && (
                     <div className="flex justify-between items-center mt-4">
                       <Button
@@ -691,7 +716,7 @@ export default function AdminTradingPairsPage() {
                       <div className="text-right space-y-1 flex items-center gap-3">
                         <div>
                           <p className="font-semibold text-foreground">
-                            {fetchingPrices ? "..." : pair.current_price ? `${pair.current_price.toFixed(2)}` : "N/A"}
+                            {fetchingPrices ? "..." : pair.current_price ? `$${pair.current_price.toFixed(2)}` : "N/A"}
                           </p>
                           <p className={`text-sm ${pair.price_change_24h && pair.price_change_24h >= 0 ? "text-green-500" : "text-red-500"}`}>
                             {fetchingPrices ? "..." : pair.price_change_24h ? `${pair.price_change_24h > 0 ? "+" : ""}${pair.price_change_24h.toFixed(2)}%` : "N/A"}
@@ -749,11 +774,11 @@ export default function AdminTradingPairsPage() {
           <CardContent>
             {loading ? (
               <p className="text-muted-foreground">Loading...</p>
-            ) : activeTrades.length === 0 ? (
+            ) : activeTradingPairs.length === 0 ? (
               <p className="text-muted-foreground">No active trading pairs available.</p>
             ) : (
               <div className="space-y-3">
-                {activeTrades.map((pair) => (
+                {activeTradingPairs.map((pair) => (
                   <div key={pair.id} className="p-4 rounded-lg bg-muted/50">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
@@ -771,7 +796,7 @@ export default function AdminTradingPairsPage() {
                       </div>
                       <div className="text-right space-y-1">
                         <p className="font-semibold text-foreground">
-                          {fetchingPrices ? "..." : pair.current_price ? `${pair.current_price.toFixed(2)}` : "N/A"}
+                          {fetchingPrices ? "..." : pair.current_price ? `$${pair.current_price.toFixed(2)}` : "N/A"}
                         </p>
                         <p className={`text-sm ${pair.price_change_24h && pair.price_change_24h >= 0 ? "text-green-500" : "text-red-500"}`}>
                           {fetchingPrices ? "..." : pair.price_change_24h ? `${pair.price_change_24h > 0 ? "+" : ""}${pair.price_change_24h.toFixed(2)}%` : "N/A"}

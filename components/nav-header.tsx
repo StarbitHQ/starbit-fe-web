@@ -23,10 +23,10 @@ export function NavHeader({ isAuthenticated = false }: { isAuthenticated?: boole
     ? [
         { href: "/dashboard", label: "Dashboard" },
         { href: "/trade", label:"Trade"},
-        { href: "/p2p", label: "P2P Trading" },
+        // { href: "/p2p", label: "P2P Trading" },
         { href: "/referral", label: "Referral" },
         { href: "/kyc", label: "KYC" },
-        { href: "/support", label: "Support" },
+        // { href: "/support", label: "Support" },
       ]
     : []
 

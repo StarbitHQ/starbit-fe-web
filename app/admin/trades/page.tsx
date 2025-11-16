@@ -11,12 +11,13 @@ import { API_BASE_URL } from "@/lib/api";
 import { format } from "date-fns";
 import Cookies from "js-cookie";
 import { useEffect, useState } from "react";
-import { Loader2, Search, ArrowUpDown, DollarSign, User, Calendar, Activity } from "lucide-react";
+import { Loader2, Search, ArrowUpDown, DollarSign, User, Calendar, Activity, Clock, CheckCircle2, XCircle } from "lucide-react";
 
 interface Trade {
   id: number;
-  user_name: string;
-  user_email: string;
+  name: string;
+  email: string;
+  username: string | null;
   account_bal: string;
   investment_amount: string;
   expected_return: string;
@@ -170,7 +171,7 @@ export default function AdminTradesPage() {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead className="cursor-pointer" onClick={() => { setSortBy('user_name'); setSortDir(sortBy === 'user_name' && sortDir === 'asc' ? 'desc' : 'asc'); }}>
+                        <TableHead className="cursor-pointer" onClick={() => { setSortBy('name'); setSortDir(sortBy === 'name' && sortDir === 'asc' ? 'desc' : 'asc'); }}>
                           <div className="flex items-center gap-1">
                             <User className="h-4 w-4" /> User
                             <ArrowUpDown className="h-3 w-3" />
@@ -204,8 +205,8 @@ export default function AdminTradesPage() {
                         <TableRow key={trade.id}>
                           <TableCell>
                             <div>
-                              <p className="font-medium">{trade.user_name}</p>
-                              <p className="text-sm text-muted-foreground">{trade.user_email}</p>
+                              <p className="font-medium">{trade.name}</p>
+                              <p className="text-sm text-muted-foreground">{trade.email}</p>
                             </div>
                           </TableCell>
                           <TableCell>
