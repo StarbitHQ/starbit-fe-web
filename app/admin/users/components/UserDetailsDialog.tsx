@@ -176,8 +176,6 @@ export const UserDetailsDialog = ({
           </Card>
 
 
-            {/* Quick Actions – now includes Promote to Admin */}
-          {/* Quick Actions – Spaced & Responsive */}
 
           <QuickActions
             userId={user.id}

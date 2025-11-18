@@ -21,11 +21,7 @@ export function middleware(request: NextRequest) {
       return NextResponse.redirect(new URL("/login", request.url));
     }
 
-    // Optionally, verify the token (e.g., JWT verification)
-    // Example: decode JWT and check validity
-    // if (!isValidToken(token)) {
-    //   return NextResponse.redirect(new URL('/login', request.url));
-    // }
+  
   }
 
   // Proceed to the requested page if authenticated

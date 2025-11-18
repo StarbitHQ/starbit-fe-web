@@ -524,7 +524,7 @@ export default function SupportPage() {
         <Tabs defaultValue="open" className="space-y-6">
           <TabsList className="grid w-full max-w-md grid-cols-2 bg-muted">
             <TabsTrigger value="open">Open Tickets</TabsTrigger>
-            <TabsTrigger value="closed">Closed Tickets</TabsTrigger>
+            {/* <TabsTrigger value="closed">Closed Tickets</TabsTrigger> */}
           </TabsList>
 
           <TabsContent value="open" className="space-y-4">

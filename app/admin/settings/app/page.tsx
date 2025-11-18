@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { API_BASE_URL } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { Smartphone, Loader2, AlertCircle } from "lucide-react";
@@ -14,54 +15,39 @@ import Cookies from "js-cookie";
 
 export default function AppSettingsPage() {
   const { toast } = useToast();
-  const [settings, setSettings] = useState({
-    platform_name: "StarBit",
-    maintenance_mode: false,
-    coingecko_cache_duration: 60,
-  });
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [settings, setSettings] = useState({
+    platform_name: "StarBit",
+    contact_email: "",
+    contact_phone: "",
+    privacy_policy: "",
+    terms_and_conditions: "",
+    deposit_refund_policy: "",
+    maintenance_mode: false,
+    coingecko_cache_duration: 60,
+  });
+
   useEffect(() => {
     const fetchSettings = async () => {
       setIsLoading(true);
-      setError(null);
-
       try {
         const authToken = Cookies.get("auth_token");
-        if (!authToken) {
-          setError("Please log in as an admin to view settings");
-          return;
-        }
-
-        // const userData = Cookies.get("user_data");
-        // if (userData && JSON.parse(userData).role !== "admin") {
-        //   setError("Unauthorized: Admin access required");
-        //   return;
-        // }
-
         const response = await fetch(`${API_BASE_URL}/api/admin/settings/app`, {
-          method: "GET",
           headers: {
-            "Content-Type": "application/json",
             Authorization: `Bearer ${authToken}`,
           },
         });
 
-        if (!response.ok) {
-          throw new Error("Failed to fetch app settings");
-        }
-
+        if (!response.ok) throw new Error("Failed to load settings");
         const data = await response.json();
         if (data.success) {
           setSettings(data.data);
-        } else {
-          throw new Error(data.error || "Failed to load app settings");
         }
       } catch (err: any) {
-        setError(err.message || "Network error. Please check your connection and try again.");
-        console.error("Error fetching app settings:", err);
+        setError(err.message || "Failed to load settings");
       } finally {
         setIsLoading(false);
       }
@@ -77,10 +63,6 @@ export default function AppSettingsPage() {
 
     try {
       const authToken = Cookies.get("auth_token");
-      if (!authToken) {
-        throw new Error("Please log in as an admin to update settings");
-      }
-
       const response = await fetch(`${API_BASE_URL}/api/admin/settings/app`, {
         method: "PATCH",
         headers: {
@@ -90,141 +72,128 @@ export default function AppSettingsPage() {
         body: JSON.stringify(settings),
       });
 
-      if (!response.ok) {
-        throw new Error("Failed to update app settings");
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || "Failed to save settings");
       }
 
-      const data = await response.json();
-      if (data.success) {
-        toast({
-          title: "App Settings Updated",
-          description: "App settings have been updated successfully.",
-        });
-        setSettings(data.data);
-      } else {
-        throw new Error(data.error || "Failed to update app settings");
-      }
+      toast({
+        title: "Success",
+        description: "App settings updated successfully",
+      });
     } catch (err: any) {
-      setError(err.message || "Network error. Please check your connection and try again.");
-      console.error("Error updating app settings:", err);
+      setError(err.message);
+      toast({
+        title: "Error",
+        description: err.message,
+        variant: "destructive",
+      });
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto mb-4" />
-          <p className="text-muted-foreground">Loading app settings...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <Card className="max-w-md mx-auto">
-          <CardContent className="p-6 text-center">
-            <AlertCircle className="h-8 w-8 text-destructive mx-auto mb-4" />
-            <p className="text-destructive mb-4">{error}</p>
-            <Button onClick={() => window.location.reload()}>
-              Try Again
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
+  if (isLoading) return <div className="flex items-center justify-center min-h-screen"><Loader2 className="h-8 w-8 animate-spin" /></div>;
+  if (error && isLoading === false && !settings.platform_name) return <div className="text-red-500 text-center p-8">{error}</div>;
 
   return (
     <div className="min-h-screen bg-background">
       <NavHeader isAuthenticated />
-      <main className="container mx-auto px-4 py-8">
-        <Card className="bg-card border-border">
+      <main className="container mx-auto px-4 py-8 max-w-5xl">
+        <Card>
           <CardHeader>
-            <CardTitle className="text-foreground flex items-center gap-2">
-              <Smartphone className="h-5 w-5 text-primary" />
+            <CardTitle className="flex items-center gap-2">
+              <Smartphone className="h-6 w-6" />
               App Settings
             </CardTitle>
-            <CardDescription className="text-muted-foreground">
-              Configure platform name and maintenance mode
-            </CardDescription>
+            <CardDescription>Manage platform information, policies, and system settings</CardDescription>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-6">
-              <div className="space-y-2">
-                <Label htmlFor="platform_name" className="text-foreground">
-                  Platform Name
-                </Label>
-                <Input
-                  id="platform_name"
-                  value={settings.platform_name}
-                  onChange={(e) =>
-                    setSettings({ ...settings, platform_name: e.target.value })
-                  }
-                  className="bg-background border-border text-foreground"
-                  placeholder="Enter platform name"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="maintenance_mode" className="text-foreground">
-                  Maintenance Mode
-                </Label>
-                <div className="flex items-center gap-2">
-                  <Switch
-                    id="maintenance_mode"
-                    checked={settings.maintenance_mode}
-                    onCheckedChange={(checked) =>
-                      setSettings({ ...settings, maintenance_mode: checked })
-                    }
+            <form onSubmit={handleSubmit} className="space-y-8">
+              {/* Basic Info */}
+              <div className="grid md:grid-cols-2 gap-6">
+                
+                <div className="space-y-2">
+                  <Label>Contact Email</Label>
+                  <Input
+                    type="email"
+                    value={settings.contact_email}
+                    onChange={(e) => setSettings({ ...settings, contact_email: e.target.value })}
+                    required
                   />
-                  <span className="text-sm text-muted-foreground">
-                    {settings.maintenance_mode
-                      ? "Maintenance mode is enabled"
-                      : "Maintenance mode is disabled"}
-                  </span>
+                </div>
+                <div className="space-y-2">
+                  <Label>Contact Phone</Label>
+                  <Input
+                    value={settings.contact_phone}
+                    onChange={(e) => setSettings({ ...settings, contact_phone: e.target.value })}
+                    required
+                  />
                 </div>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="coingecko_cache_duration" className="text-foreground">
-                  CoinGecko Cache Duration (minutes)
-                </Label>
-                <Input
-                  id="coingecko_cache_duration"
-                  type="number"
-                  value={settings.coingecko_cache_duration}
-                  onChange={(e) =>
-                    setSettings({
-                      ...settings,
-                      coingecko_cache_duration: parseInt(e.target.value) || 60,
-                    })
-                  }
-                  className="bg-background border-border text-foreground"
-                  placeholder="Enter cache duration in minutes"
-                  min="1"
-                  max="1440"
-                />
-                <p className="text-sm text-muted-foreground">
-                  Cache duration for CoinGecko API data (1–1440 minutes).
-                </p>
+
+              {/* Policies */}
+              <div className="space-y-6">
+                <div className="space-y-2">
+                  <Label>Privacy Policy</Label>
+                  <Textarea
+                    value={settings.privacy_policy}
+                    onChange={(e) => setSettings({ ...settings, privacy_policy: e.target.value })}
+                    rows={8}
+                    className="font-mono text-sm"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Terms and Conditions</Label>
+                  <Textarea
+                    value={settings.terms_and_conditions}
+                    onChange={(e) => setSettings({ ...settings, terms_and_conditions: e.target.value })}
+                    rows={8}
+                    className="font-mono text-sm"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Deposit & Refund Policy</Label>
+                  <Textarea
+                    value={settings.deposit_refund_policy}
+                    onChange={(e) => setSettings({ ...settings, deposit_refund_policy: e.target.value })}
+                    rows={8}
+                    className="font-mono text-sm"
+                  />
+                </div>
               </div>
-              <Button
-                type="submit"
-                disabled={isSubmitting}
-                className="bg-primary text-primary-foreground hover:bg-primary/90"
-              >
-                {isSubmitting ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                    Saving...
-                  </>
-                ) : (
-                  "Save App Settings"
-                )}
-              </Button>
+
+              {/* System Settings */}
+              <div className="grid md:grid-cols-2 gap-6 pt-6 border-t">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label>Maintenance Mode</Label>
+                    <p className="text-sm text-muted-foreground">Disable access for regular users</p>
+                  </div>
+                  <Switch
+                    checked={settings.maintenance_mode}
+                    onCheckedChange={(v) => setSettings({ ...settings, maintenance_mode: v })}
+                  />
+                </div>
+
+                
+              </div>
+
+              <div className="flex justify-end pt-6">
+                <Button type="submit" disabled={isSubmitting} size="lg">
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    "Save All Settings"
+                  )}
+                </Button>
+              </div>
             </form>
           </CardContent>
         </Card>

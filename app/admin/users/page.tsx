@@ -134,24 +134,16 @@ export default function AdminUsersPage() {
       return sorted[0] === a ? -1 : 1;
     });
 
-  /* ---------- Dialog open/close ---------- */
   const openDialog = (user: User) => {
     if (!user?.id) return;
-    fetchDetail(user.id); // This will set open=true inside useUserDetails
+    fetchDetail(user.id); 
   };
 
   const closeDialog = () => {
     close();
   };
 
-  /* ---------- Stable refetch for QuickActions ---------- */
-  // const refetchUserInDialog = useCallback(() => {
-  //   if (selectedUser) {
-  //     fetchDetail(selectedUser.id);
-  //   }
-  // }, [selectedUser, fetchDetail]);
-
-  /* ---------- Render ---------- */
+  
   if (usersLoading && statsLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">

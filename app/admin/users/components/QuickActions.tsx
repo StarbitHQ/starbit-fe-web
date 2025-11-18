@@ -17,6 +17,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useToast } from "@/hooks/use-toast";
 import { api } from "@/lib/api";
+import Cookies from "js-cookie";
 
 type QuickActionsProps = {
   userId: number;
@@ -76,6 +77,10 @@ export const QuickActions = ({
   const [fetchingRoles, setFetchingRoles] = useState(false);
   const { toast } = useToast();
 
+  // Get user role from cookie and clean it
+  const userRole = Cookies.get("user_role")?.trim().replace(/^["']|["']$/g, '');
+  const isSuperAdmin = userRole === "superadmin" || userRole === "super_admin";
+
   const emailForm = useForm<z.infer<typeof emailSchema>>({
     resolver: zodResolver(emailSchema),
     defaultValues: { subject: "", message: "" },
@@ -97,12 +102,46 @@ export const QuickActions = ({
       const fetchRoles = async () => {
         setFetchingRoles(true);
         try {
-          const { data } = await api.get("/api/admin/roles");
-          setRoles(data.roles.filter((r: Role) => r.can_assign));
-        } catch (e) {
+          const response = await api.get("/api/admin/roles");
+          console.log("Full API response:", response);
+          console.log("Current user role:", userRole);
+          console.log("Is superadmin:", isSuperAdmin);
+          
+          // Handle different response structures
+          let rolesData;
+          if (response.data?.roles) {
+            // Response is { data: { roles: [...] } }
+            rolesData = response.data.roles;
+          } else if (response.roles) {
+            // Response is { roles: [...] }
+            rolesData = response.roles;
+          } else if (Array.isArray(response.data)) {
+            // Response is { data: [...] }
+            rolesData = response.data;
+          } else if (Array.isArray(response)) {
+            // Response is [...]
+            rolesData = response;
+          } else {
+            console.error("Invalid response format:", response);
+            throw new Error("Invalid response format");
+          }
+          
+          console.log("Extracted roles data:", rolesData);
+          
+          // If superadmin, show all roles. Otherwise, filter by can_assign
+          const availableRoles = isSuperAdmin 
+            ? rolesData 
+            : rolesData.filter((r: Role) => r.can_assign);
+          
+          console.log("Available roles to assign:", availableRoles);
+          console.log("Setting roles state with:", availableRoles);
+          setRoles(availableRoles);
+        } catch (e: any) {
+          console.error("Error fetching roles:", e);
+          console.error("Error details:", e.response?.data);
           toast({
             title: "Error",
-            description: "Failed to load admin roles",
+            description: e.response?.data?.message || "Failed to load admin roles",
             variant: "destructive",
           });
         } finally {
@@ -111,7 +150,7 @@ export const QuickActions = ({
       };
       fetchRoles();
     }
-  }, [active, roles.length, toast]);
+  }, [active, roles.length, toast, userRole, isSuperAdmin]);
 
   // ---------- Handlers ----------
   const handleEmail = async (data: z.infer<typeof emailSchema>) => {
@@ -191,14 +230,14 @@ export const QuickActions = ({
         role: data.role,
       });
       setResult("success");
-      toast({ title: "Success", description: "User promoted to admin!" });
+      toast({ title: "Success", description: "User role updated successfully!" });
       promoteForm.reset();
       onUserUpdate?.();
       setTimeout(() => setActive(null), 1500);
     } catch (e: any) {
       setResult("error");
       const msg =
-        e.response?.data?.error || e.message || "Failed to promote user";
+        e.response?.data?.error || e.message || "Failed to update user role";
       toast({ title: "Error", description: msg, variant: "destructive" });
     } finally {
       setLoading(false);
@@ -253,17 +292,15 @@ export const QuickActions = ({
             Suspend
           </Button>
 
-          {!isAdmin && (
-            <Button
-              variant="outline"
-              className="flex-1 min-w-[140px] justify-center gap-2 text-green-600 hover:text-green-600"
-              onClick={() => setActive("promote")}
-              disabled={loading}
-            >
-              <Shield className="h-4 w-4" />
-              Promote to Admin
-            </Button>
-          )}
+          <Button
+            variant="outline"
+            className="flex-1 min-w-[140px] justify-center gap-2 text-green-600 hover:text-green-600"
+            onClick={() => setActive("promote")}
+            disabled={loading}
+          >
+            <Shield className="h-4 w-4" />
+            {isAdmin ? "Change Role" : "Promote to Admin"}
+          </Button>
         </div>
 
         {/* ---------- Send Email Form ---------- */}
@@ -466,7 +503,7 @@ export const QuickActions = ({
           <div className="rounded-md border bg-background p-4 space-y-3">
             <h4 className="font-medium flex items-center gap-1 text-green-600">
               <Shield className="h-4 w-4" />
-              Promote to Admin
+              {isAdmin ? "Change User Role" : "Promote to Admin"}
             </h4>
 
             <form
@@ -476,11 +513,19 @@ export const QuickActions = ({
               {fetchingRoles ? (
                 <div className="flex items-center justify-center py-4">
                   <Loader2 className="h-5 w-5 animate-spin" />
+                  <span className="ml-2 text-sm">Loading roles...</span>
                 </div>
               ) : roles.length === 0 ? (
-                <p className="text-sm text-orange-600">
-                  You don't have permission to assign any admin roles.
-                </p>
+                <div className="space-y-2">
+                  <p className="text-sm text-orange-600">
+                    {isSuperAdmin 
+                      ? "No roles available to assign." 
+                      : "You don't have permission to assign any admin roles."}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Debug: isSuperAdmin={isSuperAdmin ? "true" : "false"}, roles.length={roles.length}, userRole={userRole}
+                  </p>
+                </div>
               ) : (
                 <>
                   <select
@@ -501,6 +546,12 @@ export const QuickActions = ({
                       {promoteForm.formState.errors.role.message}
                     </p>
                   )}
+                  
+                  {isSuperAdmin && (
+                    <p className="text-xs text-muted-foreground">
+                      As a superadmin, you can assign any role including other superadmin roles.
+                    </p>
+                  )}
                 </>
               )}
 
@@ -512,6 +563,8 @@ export const QuickActions = ({
                 >
                   {loading ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : isAdmin ? (
+                    "Update Role"
                   ) : (
                     "Promote"
                   )}
@@ -538,7 +591,7 @@ export const QuickActions = ({
                   ) : (
                     <XCircle className="h-4 w-4" />
                   )}
-                  {result === "success" ? "Promoted!" : "Failed"}
+                  {result === "success" ? (isAdmin ? "Role Updated!" : "Promoted!") : "Failed"}
                 </div>
               )}
             </form>

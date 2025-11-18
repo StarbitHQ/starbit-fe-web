@@ -94,12 +94,12 @@ export function NavHeader({
         <div className="hidden md:flex items-center gap-3">
           {isAuthenticated ? (
             <>
-              <Link href="/profile">
+              {/* <Link href="/profile">
                 <Button variant="ghost" size="sm" className="gap-2">
                   <User className="h-4 w-4" />
                   Profile
                 </Button>
-              </Link>
+              </Link> */}
 
               <Link href="/admin/settings">
                 <Button variant="ghost" size="sm" className="gap-2">
