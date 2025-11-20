@@ -12,63 +12,39 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import {
-  Wallet,
-  CheckCircle,
-  AlertCircle,
-  ArrowLeft,
-  Loader2,
-  Upload,
-} from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Wallet, CheckCircle, AlertCircle, ArrowLeft, Loader2, Copy, RefreshCw, Upload, Image as ImageIcon, X } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import Cookies from "js-cookie";
 import { useToast } from "@/hooks/use-toast";
 import { API_BASE_URL } from "@/lib/api";
+import { QRCodeCanvas } from "qrcode.react";
 
-interface UsdtPaymentMethod {
+interface Cryptocurrency {
   id: number;
-  network: string;               // e.g. "ERC-20", "TRC-20"
-  wallet_address: string;
-  min_amount: number;           // in **cents** (1 USDT = 100 cents)
-  max_amount: number | null;    // in **cents** (null = no limit)
-}
-
-interface User {
   name: string;
-  email: string;
-  balance: number;
+  symbol: string;
+  deposit_address: string;
+  network?: string;
+  min_deposit?: number;
 }
 
-/* --------------------------------------------------------------- */
 export default function DepositPage() {
   const { toast } = useToast();
-
-  const [user, setUser] = useState<User | null>(null);
-  const [amount, setAmount] = useState("");                 // human-readable USDT
-  const [selectedMethod, setSelectedMethod] = useState<UsdtPaymentMethod | null>(null);
-  const [proofType, setProofType] = useState<"hash" | "image">("hash");
-  const [proofOfPayment, setProofOfPayment] = useState("");
-  const [proofFile, setProofFile] = useState<File | null>(null);
-  const [paymentMethods, setPaymentMethods] = useState<UsdtPaymentMethod[]>([]);
-  const [step, setStep] = useState<"method" | "amount" | "confirm">("method");
+  const [cryptos, setCryptos] = useState<Cryptocurrency[]>([]);
+  const [selectedCrypto, setSelectedCrypto] = useState<Cryptocurrency | null>(null);
+  const [amount, setAmount] = useState("");
+  const [txHash, setTxHash] = useState("");
+  const [proofImage, setProofImage] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [step, setStep] = useState<"select" | "deposit">("select");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
-  const [success, setSuccess] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  /* -------------------------- Load user & methods -------------------------- */
   useEffect(() => {
-    // ---- user ----
-    const userData = Cookies.get("user_data");
-    if (userData) {
-      try {
-        setUser(JSON.parse(userData));
-      } catch (e) {
-        toast({ title: "Error", description: "Failed to load user data", variant: "destructive" });
-      }
-    }
-
-    // ---- payment methods (USDT only) ----
     const fetchMethods = async () => {
       setIsLoading(true);
       try {
@@ -76,19 +52,24 @@ export default function DepositPage() {
         if (!token) throw new Error("Please log in");
 
         const res = await fetch(`${API_BASE_URL}/api/deposits/methods`, {
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
+          headers: { Authorization: `Bearer ${token}` },
         });
-        const json = await res.json();
-        if (!json.success) throw new Error(json.error ?? "Failed to load methods");
 
-        // Backend may return many coins – filter to USDT only
-        const usdtOnly = json.data.filter((m: any) => m.coin_name === "USDT");
-        setPaymentMethods(usdtOnly);
+        const json = await res.json();
+        if (!json.success) throw new Error(json.error || "Failed to load");
+
+        const formatted: Cryptocurrency[] = json.data
+          .filter((m: any) => m.wallet_address)
+          .map((m: any) => ({
+            id: m.id,
+            name: m.coin_name,
+            symbol: m.coin_name,
+            deposit_address: m.wallet_address,
+            network: m.network,
+          }));
+
+        setCryptos(formatted);
       } catch (err: any) {
-        setError(err.message);
         toast({ title: "Error", description: err.message, variant: "destructive" });
       } finally {
         setIsLoading(false);
@@ -98,71 +79,80 @@ export default function DepositPage() {
     fetchMethods();
   }, [toast]);
 
-  /* -------------------------- Helpers -------------------------- */
-  const toCents = (usd: number) => Math.round(usd * 100);
-  const fromCents = (cents: number) => (cents / 100).toFixed(2);
+  const handleImageSelect = (file: File) => {
+    if (!file.type.startsWith("image/")) {
+      toast({ title: "Invalid file", description: "Please upload an image", variant: "destructive" });
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast({ title: "Too large", description: "Image must be under 5MB", variant: "destructive" });
+      return;
+    }
 
-  const formatAmount = (cents: number) => `${fromCents(cents)} USDT`;
+    setProofImage(file);
+    const reader = new FileReader();
+    reader.onloadend = () => setImagePreview(reader.result as string);
+    reader.readAsDataURL(file);
+  };
 
-  /* -------------------------- Validation -------------------------- */
-  const handleAmountSubmit = (e: React.FormEvent) => {
+  const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
-    if (!selectedMethod) return setError("Select a method first");
-
-    const parsed = parseFloat(amount);
-    if (isNaN(parsed) || parsed <= 0) return setError("Enter a valid amount");
-
-    const minUsd = selectedMethod.min_amount / 100;
-    const maxUsd = selectedMethod.max_amount !== null ? selectedMethod.max_amount / 100 : null;
-
-    if (parsed < minUsd) return setError(`Minimum deposit is ${formatAmount(selectedMethod.min_amount)}`);
-    if (maxUsd !== null && parsed > maxUsd) return setError(`Maximum deposit is ${formatAmount(selectedMethod.max_amount!)}`);
-
-    setError("");
-    setStep("confirm");
+    const file = e.dataTransfer.files[0];
+    if (file) handleImageSelect(file);
   };
 
-  const handleMethodSelect = (method: UsdtPaymentMethod) => {
-    setSelectedMethod(method);
-    setAmount("");
-    setProofOfPayment("");
-    setProofFile(null);
-    setStep("amount");
-  };
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files?.[0]) setProofFile(e.target.files[0]);
-  };
-
-  /* -------------------------- Submit deposit -------------------------- */
-  const handleDeposit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedMethod || !amount) return;
-    if (proofType === "image" && !proofFile) return setError("Upload proof image");
-    if (proofType === "hash" && !proofOfPayment) return setError("Enter transaction hash");
+    if (!selectedCrypto || !amount) return;
+
+    const numAmount = parseFloat(amount);
+    if (isNaN(numAmount) || numAmount <= 0) {
+      setError("Enter a valid amount");
+      return;
+    }
+
+    if (!txHash.trim() && !proofImage) {
+      setError("Provide transaction hash OR upload proof image");
+      return;
+    }
 
     setIsLoading(true);
     setError("");
 
-    try {
-      const form = new FormData();
-      form.append("crypto_payment_method_id", selectedMethod.id.toString());
-      form.append("amount", toCents(parseFloat(amount)).toString());
-      form.append("proof_type", proofType);
-      if (proofType === "hash") form.append("proof_of_payment", proofOfPayment);
-      if (proofType === "image" && proofFile) form.append("proof_file", proofFile);
+    const formData = new FormData();
+    formData.append("cryptocurrency_id", selectedCrypto.id.toString());
+    formData.append("expected_amount", numAmount.toString());
+    formData.append("to_address", selectedCrypto.deposit_address);
 
+    if (txHash.trim()) formData.append("transaction_hash", txHash.trim());
+    if (proofImage) formData.append("proof_image", proofImage);
+
+    try {
+      const token = Cookies.get("auth_token");
       const res = await fetch(`${API_BASE_URL}/api/deposits`, {
         method: "POST",
-        headers: { Authorization: `Bearer ${Cookies.get("auth_token")}` },
-        body: form,
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
       });
+
       const json = await res.json();
 
-      if (!json.success) throw new Error(json.error ?? "Deposit failed");
-
-      setSuccess(true);
-      toast({ title: "Submitted", description: "Deposit pending admin approval." });
+      if (res.ok && json.success) {
+        toast({
+          title: "Success!",
+          description: txHash.trim()
+            ? "Verification started automatically"
+            : "Proof uploaded — admin will review soon",
+        });
+        setStep("select");
+        setSelectedCrypto(null);
+        setAmount("");
+        setTxHash("");
+        setProofImage(null);
+        setImagePreview(null);
+      } else {
+        throw new Error(json.message || "Submission failed");
+      }
     } catch (err: any) {
       setError(err.message);
       toast({ title: "Error", description: err.message, variant: "destructive" });
@@ -171,282 +161,192 @@ export default function DepositPage() {
     }
   };
 
-  /* -------------------------- Success UI -------------------------- */
-  if (success) {
-    return (
-      <div className="min-h-screen bg-background">
-        <NavHeader isAuthenticated />
-        <main className="container mx-auto px-4 py-8">
-          <div className="max-w-md mx-auto">
-            <Card classDestroy="bg-card border-border">
-              <CardContent className="p-8 text-center">
-                <CheckCircle className="h-16 w-16 text-green-500 mx-auto mb-4" />
-                <CardHeader>
-                  <CardTitle className="text-2xl text-foreground">Deposit Submitted!</CardTitle>
-                  <CardDescription className="text-muted-foreground">
-                    {amount} USDT ({selectedMethod?.network}) is pending approval.
-                  </CardDescription>
-                </CardHeader>
+  const reset = () => {
+    setStep("select");
+    setSelectedCrypto(null);
+    setAmount("");
+    setTxHash("");
+    setProofImage(null);
+    setImagePreview(null);
+    setError("");
+  };
 
-                <Badge className="text-lg px-4 py-2 bg-green-100 text-green-800">
-                  Balance: ${user?.balance ?? "0.00"}
-                </Badge>
-
-                <div className="flex gap-2 mt-4">
-                  <Link href="/dashboard" className="flex-1">
-                    <Button className="w-full">
-                      <ArrowLeft className="h-4 w-4 mr-2" />
-                      Dashboard
-                    </Button>
-                  </Link>
-                  <Button
-                    variant="outline"
-                    className="flex-1"
-                    onClick={() => {
-                      setSuccess(false);
-                      setStep("method");
-                      setAmount("");
-                      setProofOfPayment("");
-                      setProofFile(null);
-                      setSelectedMethod(null);
-                    }}
-                  >
-                    New Deposit
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </main>
-      </div>
-    );
-  }
-
-  /* -------------------------- Main UI -------------------------- */
   return (
     <div className="min-h-screen bg-background">
       <NavHeader isAuthenticated />
-      <main className="container mx-auto px-4 py-8">
-        <div className="max-w-2xl mx-auto">
-          <Link href="/dashboard" className="inline-flex items-center gap-2 mb-6 text-muted-foreground hover:text-foreground">
-            <ArrowLeft className="h-4 w-4" />
-            Back to Dashboard
+      <main className="container mx-auto px-4 py-12">
+        <div className="max-w-4xl mx-auto">
+          <Link href="/dashboard" className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground mb-8">
+            <ArrowLeft className="h-4 w-4" /> Back to Dashboard
           </Link>
 
-          <Card className="bg-card border-border">
+          <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-foreground">
-                <Wallet className="h-6 w-6 text-primary" />
-                Deposit USDT
+              <CardTitle className="flex items-center gap-3 text-3xl">
+                <Wallet className="h-9 w-9 text-primary" />
+                Deposit Crypto
               </CardTitle>
-              <CardDescription className="text-muted-foreground">
-                Choose a network and send USDT to the address shown.
+              <CardDescription>
+                Choose on-chain verification or upload proof manually
               </CardDescription>
             </CardHeader>
 
-            <CardContent className="space-y-6">
-              {/* ----- Loading / Global error ----- */}
-              {isLoading ? (
-                <div className="text-center py-8">
-                  <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto mb-2" />
-                  <p className="text-muted-foreground">Loading USDT methods...</p>
-                </div>
-              ) : error && step !== "confirm" ? (
-                <div className="text-center py-4">
-                  <AlertCircle className="h-8 w-8 text-destructive mx-auto mb-2" />
-                  <p className="text-destructive">{error}</p>
-                </div>
-              ) : (
-                <>
-                  {/* ----- STEP 1: Choose network ----- */}
-                  {step === "method" && (
-                    <div className="space-y-4">
-                      <h3 className="text-lg font-semibold text-foreground">Select Network</h3>
-                      <div className="grid gap-3">
-                        {paymentMethods.length === 0 ? (
-                          <p className="text-muted-foreground">No USDT methods available.</p>
-                        ) : (
-                          paymentMethods.map((m) => (
-                            <Button
-                              key={m.id}
-                              variant="outline"
-                              className="justify-start h-auto p-4 space-y-2 border-2 hover:border-primary"
-                              onClick={() => handleMethodSelect(m)}
-                            >
-                              <div className="flex items-start gap-3 flex-1">
-                                <div className="p-2 bg-primary/10 rounded-lg">
-                                  <Wallet className="h-5 w-5" />
-                                </div>
-                                <div className="text-left">
-                                  <h4 className="font-medium text-foreground">{m.network}</h4>
-                                  <p className="text-sm text-muted-foreground">
-                                    Min: {formatAmount(m.min_amount)} | Max:{" "}
-                                    {m.max_amount ? formatAmount(m.max_amount) : "No limit"}
-                                  </p>
-                                </div>
-                              </div>
-                            </Button>
-                          ))
-                        )}
-                      </div>
+            <CardContent className="space-y-8">
+              {step === "select" && (
+                <div className="space-y-6">
+                  <h3 className="text-2xl font-semibold">Select Cryptocurrency</h3>
+                  {cryptos.length === 0 ? (
+                    <p className="text-center py-16 text-muted-foreground">No deposit methods available</p>
+                  ) : (
+                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                      {cryptos.map((crypto) => (
+                        <Button
+                          key={crypto.id}
+                          variant="outline"
+                          className="h-32 border-2 hover:border-primary transition-all"
+                          onClick={() => {
+                            setSelectedCrypto(crypto);
+                            setStep("deposit");
+                          }}
+                        >
+                          <div className="text-left space-y-2">
+                            <div className="font-bold text-xl">{crypto.symbol}</div>
+                            {crypto.network && (
+                              <Badge variant="secondary">{crypto.network}</Badge>
+                            )}
+                          </div>
+                        </Button>
+                      ))}
                     </div>
                   )}
+                </div>
+              )}
 
-                  {/* ----- STEP 2: Enter amount ----- */}
-                  {step === "amount" && selectedMethod && (
-                    <form onSubmit={handleAmountSubmit} className="space-y-4">
+              {step === "deposit" && selectedCrypto && (
+                <form onSubmit={handleSubmit} className="space-y-8">
+                  <Alert>
+                    <AlertCircle className="h-5 w-5" />
+                    <AlertDescription>
+                      Send <strong>only {selectedCrypto.symbol}</strong> ({selectedCrypto.network}) to this address.
+                      Wrong network = permanent loss.
+                    </AlertDescription>
+                  </Alert>
+
+                  <div className="bg-muted/50 rounded-2xl p-8 text-center space-y-6">
+                    <QRCodeCanvas value={selectedCrypto.deposit_address} size={220} level="H" />
+                    <div>
+                      <p className="text-sm text-muted-foreground mb-3">Deposit Address</p>
+                      <div className="flex items-center justify-center gap-3 flex-wrap">
+                        <code className="font-mono text-sm bg-background px-5 py-3 rounded-xl break-all max-w-md">
+                          {selectedCrypto.deposit_address}
+                        </code>
+                        <Button variant="ghost" size="sm" onClick={() => navigator.clipboard.writeText(selectedCrypto.deposit_address)}>
+                          <Copy className="h-5 w-5" />
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Amount ({selectedCrypto.symbol})</Label>
+                    <Input
+                      type="number"
+                      step="any"
+                      placeholder="0.001"
+                      value={amount}
+                      onChange={(e) => setAmount(e.target.value)}
+                      required
+                    />
+                  </div>
+
+                  <Tabs defaultValue="hash" className="w-full">
+                    <TabsList className="grid w-full grid-cols-2">
+                      <TabsTrigger value="hash">Transaction Hash</TabsTrigger>
+                      <TabsTrigger value="image">Upload Proof</TabsTrigger>
+                    </TabsList>
+
+                    <TabsContent value="hash" className="space-y-4 mt-6">
                       <div className="space-y-2">
-                        <Label htmlFor="amount" className="text-foreground">
-                          Deposit Amount (USDT)
-                        </Label>
-                        <div className="relative">
-                          <Wallet className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                          <Input
-                            id="amount"
-                            type="number"
-                            placeholder="0.00"
-                            step="0.01"
-                            value={amount}
-                            onChange={(e) => setAmount(e.target.value)}
-                            className="pl-10 bg-background border-border text-foreground"
-                            required
-                          />
-                        </div>
-
-                        <p className="text-sm text-muted-foreground">
-                          Min: {formatAmount(selectedMethod.min_amount)} | Max:{" "}
-                          {selectedMethod.max_amount ? formatAmount(selectedMethod.max_amount) : "No limit"}
-                        </p>
-
-                        {error && (
-                          <p className="text-sm text-destructive flex items-center gap-1">
-                            <AlertCircle className="h-4 w-4" />
-                            {error}
-                          </p>
-                        )}
+                        <Label>Transaction Hash (optional if uploading image)</Label>
+                        <Input
+                          placeholder="Paste tx hash (e.g. 0x123...)"
+                          value={txHash}
+                          onChange={(e) => setTxHash(e.target.value)}
+                        />
                       </div>
+                    </TabsContent>
 
-                      <div className="flex justify-between text-sm text-muted-foreground">
-                        <span>Balance: ${user?.balance ?? "0.00"}</span>
-                        <span>Fee: Free</span>
-                      </div>
-
-                      <Button type="submit" className="w-full" disabled={!amount || parseFloat(amount) <= 0}>
-                        Continue
-                      </Button>
-
-                      <Button variant="ghost" type="button" className="w-full" onClick={() => setStep("method")}>
-                        <ArrowLeft className="h-4 w-4 mr-2" />
-                        Change Network
-                      </Button>
-                    </form>
-                  )}
-
-                  {/* ----- STEP 3: Confirm & proof ----- */}
-                  {step === "confirm" && selectedMethod && (
-                    <form onSubmit={handleDeposit} className="space-y-6">
-                      <div className="space-y-4">
-                        <div className="text-center">
-                          <h3 className="text-xl font-semibold text-foreground">Confirm Deposit</h3>
-                          <p className="text-muted-foreground">
-                            {amount} USDT → {selectedMethod.network}
-                          </p>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-4 p-4 bg-muted/50 rounded-lg">
-                          <div>
-                            <p className="text-sm text-muted-foreground">Amount</p>
-                            <p className="font-semibold">{amount} USDT</p>
-                          </div>
-                          <div>
-                            <p className="text-sm text-muted-foreground">Network</p>
-                            <p className="font-medium">{selectedMethod.network}</p>
-                          </div>
-                          <div className="col-span-2">
-                            <p className="text-sm text-muted-foreground">Wallet Address</p>
-                            <p className="text-sm font-mono break-all">{selectedMethod.wallet_address}</p>
-                          </div>
-                          <div className="col-span-2">
-                            <p className="text-sm text-muted-foreground">Fee</p>
-                            <p className="text-lg font-semibold text-green-600">Free</p>
-                          </div>
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label className="text-foreground">Proof of Payment</Label>
-                          <div className="flex gap-2 mb-2">
-                            <Button
-                              type="button"
-                              variant={proofType === "hash" ? "default" : "outline"}
-                              onClick={() => setProofType("hash")}
-                            >
-                              Tx Hash
-                            </Button>
-                            <Button
-                              type="button"
-                              variant={proofType === "image" ? "default" : "outline"}
-                              onClick={() => setProofType("image")}
-                            >
-                              Image
-                            </Button>
-                          </div>
-
-                          {proofType === "hash" ? (
-                            <Input
-                              placeholder="Paste transaction hash"
-                              value={proofOfPayment}
-                              onChange={(e) => setProofOfPayment(e.target.value)}
-                              className="bg-background border-border text-foreground"
-                            />
-                          ) : (
-                            <div>
-                              <Input
-                                type="file"
-                                accept="image/*"
-                                onChange={handleFileChange}
-                                className="bg-background border-border text-foreground"
-                              />
-                              {proofFile && (
-                                <p className="mt-1 text-sm text-muted-foreground">
-                                  {proofFile.name}
-                                </p>
-                              )}
+                    <TabsContent value="image" className="mt-6">
+                      <div
+                        className="border-2 border-dashed border-muted-foreground/30 rounded-xl p-8 text-center cursor-pointer hover:border-primary/50 transition-all"
+                        onClick={() => fileInputRef.current?.click()}
+                        onDragOver={(e) => e.preventDefault()}
+                        onDrop={handleDrop}
+                      >
+                        {imagePreview ? (
+                          <div className="space-y-4">
+                            <div className="relative inline-block">
+                              <img src={imagePreview} alt="Proof" className="max-h-64 rounded-lg" />
+                              <Button
+                                size="icon"
+                                variant="destructive"
+                                className="absolute top-2 right-2"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setProofImage(null);
+                                  setImagePreview(null);
+                                }}
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
                             </div>
-                          )}
-
-                          {error && (
-                            <p className="text-sm text-destructive flex items-center gap-1">
-                              <AlertCircle className="h-4 w-4" />
-                              {error}
-                            </p>
-                          )}
-                        </div>
+                            <p className="text-sm text-muted-foreground">Click to change</p>
+                          </div>
+                        ) : (
+                          <div className="space-y-4">
+                            <Upload className="h-12 w-12 mx-auto text-muted-foreground" />
+                            <div>
+                              <p className="font-medium">Drop image here or click to upload</p>
+                              <p className="text-sm text-muted-foreground mt-1">
+                                JPG, PNG, GIF, WebP · Max 5MB
+                              </p>
+                            </div>
+                          </div>
+                        )}
+                        <input
+                          ref={fileInputRef}
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => e.target.files?.[0] && handleImageSelect(e.target.files[0])}
+                        />
                       </div>
+                    </TabsContent>
+                  </Tabs>
 
-                      <div className="flex gap-3 pt-4">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          className="flex-1"
-                          onClick={() => setStep("amount")}
-                        >
-                          <ArrowLeft className="h-4 w-4 mr-2" />
-                          Back
-                        </Button>
-                        <Button type="submit" className="flex-1" disabled={isLoading}>
-                          {isLoading ? (
-                            <>
-                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                              Submitting...
-                            </>
-                          ) : (
-                            "Submit Deposit"
-                          )}
-                        </Button>
-                      </div>
-                    </form>
+                  {error && (
+                    <Alert variant="destructive">
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertDescription>{error}</AlertDescription>
+                    </Alert>
                   )}
-                </>
+
+                  <div className="flex gap-4">
+                    <Button type="button" variant="outline" onClick={reset} className="flex-1">
+                      <ArrowLeft className="h-4 w-4 mr-2" /> Back
+                    </Button>
+                    <Button type="submit" disabled={isLoading} className="flex-1">
+                      {isLoading ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Submitting...
+                        </>
+                      ) : (
+                        "Submit Deposit"
+                      )}
+                    </Button>
+                  </div>
+                </form>
               )}
             </CardContent>
           </Card>

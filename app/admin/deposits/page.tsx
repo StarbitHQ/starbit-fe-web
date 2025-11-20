@@ -6,370 +6,361 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { API_BASE_URL } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
-import { Wallet, Loader2, AlertCircle, CheckCircle, XCircle, ExternalLink } from "lucide-react";
-import { useState, useEffect } from "react";
+import { Wallet, Loader2, AlertCircle, CheckCircle, XCircle, ExternalLink, Image as ImageIcon, RefreshCw, Search } from "lucide-react";
+import { useState, useEffect, useMemo } from "react";
 import Cookies from "js-cookie";
+import Image from "next/image";
 
 interface Deposit {
   id: number;
-  user_name: string;
-  user_email: string;
-  amount: number;
-  crypto_payment_method: {
+  user: {
+    id: number;
+    name: string;
+    email: string;
+  } | null;
+  cryptocurrency: {
     id: number;
     coin_name: string;
     network: string;
-  };
-  proof_of_payment: string;
-  status: "pending" | "processed" | "declined";
-  decline_reason?: string;
+  } | null;
+  transaction_hash: string | null;
+  from_address: string | null;
+  to_address: string;
+  expected_amount: string;
+  actual_amount: string | null;
+  credited_amount: string | null;
+  proof_of_payment: string | null;
+  status: "pending" | "verifying" | "confirmed" | "failed" | "mismatch";
+  confirmations: number;
+  verification_error: string | null;
+  verified_at: string | null;
   created_at: string;
 }
 
 export default function DepositManagementPage() {
   const { toast } = useToast();
   const [deposits, setDeposits] = useState<Deposit[]>([]);
+  const [allDeposits, setAllDeposits] = useState<Deposit[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [declineReason, setDeclineReason] = useState<string>("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [failReason, setFailReason] = useState("");
   const [selectedDepositId, setSelectedDepositId] = useState<number | null>(null);
+  const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
+  const [confirmingDepositId, setConfirmingDepositId] = useState<number | null>(null);
 
-  useEffect(() => {
-    const fetchDeposits = async () => {
-      setIsLoading(true);
-      setError(null);
+  const fetchDeposits = async () => {
+    setIsLoading(true);
+    setError(null);
 
-      try {
-        const authToken = Cookies.get("auth_token");
-        if (!authToken) {
-          setError("Please log in as an admin to view deposits");
-          return;
-        }
-
-
-        const response = await fetch(`${API_BASE_URL}/api/admin/deposits`, {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${authToken}`,
-          },
-        });
-
-        if (!response.ok) {
-          throw new Error("Failed to fetch deposits");
-        }
-
-        const data = await response.json();
-        if (data.success) {
-          setDeposits(data.data);
-        } else {
-          throw new Error(data.error || "Failed to load deposits");
-        }
-      } catch (err: any) {
-        setError(err.message || "Network error. Please check your connection and try again.");
-        console.error("Error fetching deposits:", err);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchDeposits();
-  }, []);
-
-  const handleProcess = async (id: number) => {
     try {
       const authToken = Cookies.get("auth_token");
-      if (!authToken) {
-        throw new Error("Please log in as an admin to process deposits");
-      }
+      if (!authToken) throw new Error("Authentication required");
 
-      const response = await fetch(`${API_BASE_URL}/api/admin/deposits/${id}/process`, {
-        method: "POST",
+      const response = await fetch(`${API_BASE_URL}/api/admin/deposits`, {
         headers: {
-          "Content-Type": "application/json",
           Authorization: `Bearer ${authToken}`,
+          "Content-Type": "application/json",
         },
       });
 
-      if (!response.ok) {
-        throw new Error("Failed to process deposit");
-      }
+      if (!response.ok) throw new Error("Failed to fetch deposits");
+      const result = await response.json();
+      if (!result.success) throw new Error(result.message || "Unknown error");
 
-      const data = await response.json();
-      if (data.success) {
-        toast({
-          title: "Deposit Processed",
-          description: "The deposit has been processed successfully.",
-        });
-        setDeposits(
-          deposits.map((deposit) =>
-            deposit.id === id ? { ...deposit, status: data.data.status } : deposit
-          )
-        );
-      } else {
-        throw new Error(data.error || "Failed to process deposit");
-      }
+      const data = result.data;
+      setAllDeposits(data);
+      setDeposits(data);
     } catch (err: any) {
-      toast({
-        title: "Error",
-        description: err.message || "Failed to process deposit",
-        variant: "destructive",
-      });
+      setError(err.message || "Failed to load deposits");
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const handleDecline = async (id: number) => {
-    if (!declineReason) {
-      toast({
-        title: "Error",
-        description: "Please provide a reason for declining the deposit",
-        variant: "destructive",
+  useEffect(() => {
+    fetchDeposits();
+  }, []);
+
+  // Search filtering
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setDeposits(allDeposits);
+      return;
+    }
+
+    const query = searchQuery.toLowerCase();
+    const filtered = allDeposits.filter((d) => {
+      return (
+        d.id.toString().includes(query) ||
+        d.user?.name?.toLowerCase().includes(query) ||
+        d.user?.email?.toLowerCase().includes(query) ||
+        d.transaction_hash?.toLowerCase().includes(query) ||
+        d.cryptocurrency?.coin_name?.toLowerCase().includes(query) ||
+        d.cryptocurrency?.network?.toLowerCase().includes(query) ||
+        d.expected_amount.includes(query)
+      );
+    });
+
+    setDeposits(filtered);
+  }, [searchQuery, allDeposits]);
+
+  const handleManualConfirm = async (depositId: number) => {
+    setConfirmingDepositId(depositId);
+    try {
+      const authToken = Cookies.get("auth_token");
+      const res = await fetch(`${API_BASE_URL}/api/admin/deposits/${depositId}/manual-confirm`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${authToken}` },
       });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.message || "Failed to confirm");
+
+      toast({ title: "Success", description: "Deposit manually confirmed & credited" });
+      fetchDeposits();
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } finally {
+      setConfirmingDepositId(null);
+    }
+  };
+
+  const handleFail = async () => {
+    if (!selectedDepositId || !failReason.trim()) {
+      toast({ title: "Error", description: "Reason is required", variant: "destructive" });
       return;
     }
 
     try {
       const authToken = Cookies.get("auth_token");
-      if (!authToken) {
-        throw new Error("Please log in as an admin to decline deposits");
-      }
-
-      const response = await fetch(`${API_BASE_URL}/api/admin/deposits/${id}/decline`, {
+      const res = await fetch(`${API_BASE_URL}/api/admin/deposits/${selectedDepositId}/fail`, {
         method: "POST",
         headers: {
-          "Content-Type": "application/json",
           Authorization: `Bearer ${authToken}`,
+          "Content-Type": "application/json",
         },
-        body: JSON.stringify({ decline_reason: declineReason }),
+        body: JSON.stringify({ reason: failReason }),
       });
 
-      if (!response.ok) {
-        throw new Error("Failed to decline deposit");
-      }
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.message || "Failed");
 
-      const data = await response.json();
-      if (data.success) {
-        toast({
-          title: "Deposit Declined",
-          description: "The deposit has been declined successfully.",
-        });
-        setDeposits(
-          deposits.map((deposit) =>
-            deposit.id === id
-              ? { ...deposit, status: data.data.status, decline_reason: data.data.decline_reason }
-              : deposit
-          )
-        );
-        setDeclineReason("");
-        setSelectedDepositId(null);
-      } else {
-        throw new Error(data.error || "Failed to decline deposit");
-      }
+      toast({ title: "Success", description: "Deposit marked as failed" });
+      setFailReason("");
+      setSelectedDepositId(null);
+      fetchDeposits();
     } catch (err: any) {
-      toast({
-        title: "Error",
-        description: err.message || "Failed to decline deposit",
-        variant: "destructive",
-      });
+      toast({ title: "Error", description: err.message, variant: "destructive" });
     }
   };
 
-  const formatAmount = (amount: number, coin: string) => {
-    if (coin === "Bitcoin") return (amount / 1e8).toFixed(8) + " BTC";
-    if (coin === "Ethereum") return (amount / 1e18).toFixed(18) + " ETH";
-    if (coin === "Solana") return (amount / 1e9).toFixed(9) + " SOL";
-    return amount.toString();
+  const getStatusBadge = (status: Deposit["status"]) => {
+    const map = {
+      pending: { color: "bg-yellow-100 text-yellow-800", icon: <Loader2 className="h-3 w-3 animate-spin" /> },
+      verifying: { color: "bg-blue-100 text-blue-800", icon: <RefreshCw className="h-3 w-3 animate-spin" /> },
+      confirmed: { color: "bg-green-100 text-green-800", icon: <CheckCircle className="h-3 w-3" /> },
+      failed: { color: "bg-red-100 text-red-800", icon: <XCircle className="h-3 w-3" /> },
+      mismatch: { color: "bg-orange-100 text-orange-800", icon: <AlertCircle className="h-3 w-3" /> },
+    };
+    const { color, icon } = map[status];
+    return (
+      <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${color}`}>
+        {icon} {status.charAt(0).toUpperCase() + status.slice(1)}
+      </span>
+    );
   };
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto mb-4" />
-          <p className="text-muted-foreground">Loading deposits...</p>
-        </div>
-      </div>
-    );
-  }
+  const explorerUrl = (deposit: Deposit) => {
+    if (!deposit.transaction_hash || !deposit.cryptocurrency) return null;
+    const hash = deposit.transaction_hash;
+    const coin = deposit.cryptocurrency.coin_name;
 
-  if (error) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <Card className="max-w-md mx-auto">
-          <CardContent className="p-6 text-center">
-            <AlertCircle className="h-8 w-8 text-destructive mx-auto mb-4" />
-            <p className="text-destructive mb-4">{error}</p>
-            <Button onClick={() => window.location.reload()}>
-              Try Again
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
+    const explorers: Record<string, string> = {
+      Bitcoin: `https://blockchair.com/bitcoin/transaction/${hash}`,
+      Ethereum: `https://etherscan.io/tx/${hash}`,
+      "Binance Coin": `https://bscscan.com/tx/${hash}`,
+      Polygon: `https://polygonscan.com/tx/${hash}`,
+      Solana: `https://solscan.io/tx/${hash}`,
+      Tron: `https://tronscan.org/#/transaction/${hash}`,
+    };
+
+    return explorers[coin] || `https://blockchair.com/search?q=${hash}`;
+  };
+
+  if (isLoading) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="h-10 w-10 animate-spin" /></div>;
+  if (error) return <div className="min-h-screen flex items-center justify-center text-red-500">{error}</div>;
 
   return (
     <div className="min-h-screen bg-background">
       <NavHeader isAuthenticated />
       <main className="container mx-auto px-4 py-8">
-        <Card className="bg-card border-border">
+        <Card>
           <CardHeader>
-            <CardTitle className="text-foreground flex items-center gap-2">
-              <Wallet className="h-5 w-5 text-primary" />
-              Deposit Management
-            </CardTitle>
-            <CardDescription className="text-muted-foreground">
-              Review and manage user deposits
-            </CardDescription>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div>
+                <CardTitle className="flex items-center gap-2 text-2xl">
+                  <Wallet className="h-7 w-7" />
+                  Deposit Management
+                </CardTitle>
+                <CardDescription>Review on-chain deposits and manual proof submissions</CardDescription>
+              </div>
+              <div className="relative w-full sm:w-80">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+                <Input
+                  placeholder="Search by ID, name, email, tx hash, coin..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>ID</TableHead>
-                  <TableHead>Client Name</TableHead>
-                  <TableHead>Client Email</TableHead>
-                  <TableHead>Amount</TableHead>
-                  <TableHead>Payment Method</TableHead>
-                  <TableHead>Proof of Payment</TableHead>
+                  <TableHead>User</TableHead>
+                  <TableHead>Coin</TableHead>
+                  <TableHead>Expected</TableHead>
+                  <TableHead>Proof</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Date Created</TableHead>
                   <TableHead>Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {deposits.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={9} className="text-center text-muted-foreground">
-                      No deposits found
+                    <TableCell colSpan={7} className="text-center py-10 text-muted-foreground">
+                      {searchQuery ? "No deposits match your search" : "No deposits found"}
                     </TableCell>
                   </TableRow>
                 ) : (
-                  deposits.map((deposit) => (
-                    <TableRow key={deposit.id}>
-                      <TableCell>{deposit.id}</TableCell>
-                      <TableCell>{deposit.user_name}</TableCell>
-                      <TableCell>{deposit.user_email}</TableCell>
+                  deposits.map((d) => (
+                    <TableRow key={d.id}>
+                      <TableCell className="font-mono">#{d.id}</TableCell>
                       <TableCell>
-                        {formatAmount(deposit.amount, deposit.crypto_payment_method.coin_name)}
+                        <div>
+                          <p className="font-medium">{d.user?.name || "Deleted"}</p>
+                          <p className="text-xs text-muted-foreground">{d.user?.email || "-"}</p>
+                        </div>
                       </TableCell>
                       <TableCell>
-                        {deposit.crypto_payment_method.coin_name} ({deposit.crypto_payment_method.network})
+                        {d.cryptocurrency?.coin_name} ({d.cryptocurrency?.network})
                       </TableCell>
+                      <TableCell className="font-mono">{d.expected_amount}</TableCell>
                       <TableCell>
-                        {deposit.proof_of_payment.startsWith("http") ? (
+                        {d.proof_of_payment ? (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setImagePreviewUrl(d.proof_of_payment!)}
+                            className="h-8 px-3 text-primary hover:bg-primary/10 gap-1.5 font-medium"
+                          >
+                            <ImageIcon className="h-4 w-4" />
+                            View Image
+                          </Button>
+                        ) : d.transaction_hash ? (
                           <a
-                            href={deposit.proof_of_payment}
+                            href={explorerUrl(d)!}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-primary hover:underline flex items-center gap-1"
+                            className="inline-flex items-center gap-1.5 text-primary hover:underline text-sm font-medium"
                           >
-                            View Image <ExternalLink className="h-4 w-4" />
+                            <ExternalLink className="h-3.5 w-3.5" />
+                            View Tx
                           </a>
                         ) : (
-                          <a
-                            href={`https://blockchair.com/${deposit.crypto_payment_method.network.toLowerCase().replace(" ", "-")}/transaction/${deposit.proof_of_payment}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-primary hover:underline flex items-center gap-1"
-                          >
-                            View Tx <ExternalLink className="h-4 w-4" />
-                          </a>
+                          <span className="text-muted-foreground text-sm">—</span>
                         )}
                       </TableCell>
+                      <TableCell>{getStatusBadge(d.status)}</TableCell>
                       <TableCell>
-                        <span
-                          className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${
-                            deposit.status === "processed"
-                              ? "bg-green-100 text-green-800"
-                              : deposit.status === "declined"
-                              ? "bg-red-100 text-red-800"
-                              : "bg-yellow-100 text-yellow-800"
-                          }`}
-                        >
-                          {deposit.status === "processed" && <CheckCircle className="h-3 w-3" />}
-                          {deposit.status === "declined" && <XCircle className="h-3 w-3" />}
-                          {deposit.status === "pending" && <Loader2 className="h-3 w-3 animate-spin" />}
-                          {deposit.status.charAt(0).toUpperCase() + deposit.status.slice(1)}
-                        </span>
-                      </TableCell>
-                      <TableCell>
-                        {new Date(deposit.created_at).toLocaleDateString()}
-                      </TableCell>
-                      <TableCell>
-                        {deposit.status === "pending" && (
-                          <div className="flex gap-2">
+                        <div className="flex gap-2 flex-wrap">
+                          {["pending", "verifying", "mismatch"].includes(d.status) && (
                             <Button
-                              variant="outline"
                               size="sm"
-                              onClick={() => handleProcess(deposit.id)}
-                              className="gap-1"
+                              onClick={() => handleManualConfirm(d.id)}
+                              disabled={confirmingDepositId === d.id}
                             >
-                              <CheckCircle className="h-4 w-4" />
-                              Process
+                              {confirmingDepositId === d.id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <CheckCircle className="h-4 w-4 mr-1" />
+                              )}
+                              Confirm
                             </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => setSelectedDepositId(deposit.id)}
-                              className="gap-1"
-                            >
-                              <XCircle className="h-4 w-4" />
-                              Decline
+                          )}
+                          {d.status !== "confirmed" && d.status !== "failed" && (
+                            <Button size="sm" variant="destructive" onClick={() => setSelectedDepositId(d.id)}>
+                              <XCircle className="h-4 w-4 mr-1" />
+                              Fail
                             </Button>
-                          </div>
-                        )}
-                        {deposit.status === "declined" && deposit.decline_reason && (
-                          <p className="text-sm text-muted-foreground">
-                            Reason: {deposit.decline_reason}
-                          </p>
-                        )}
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))
                 )}
               </TableBody>
             </Table>
-
-            {selectedDepositId && (
-              <div className="mt-6">
-                <Card className="bg-card border-border">
-                  <CardContent className="p-6">
-                    <Label htmlFor="decline_reason" className="text-foreground">
-                      Reason for Declining Deposit
-                    </Label>
-                    <Input
-                      id="decline_reason"
-                      value={declineReason}
-                      onChange={(e) => setDeclineReason(e.target.value)}
-                      className="bg-background border-border text-foreground mt-2"
-                      placeholder="e.g., Invalid transaction hash"
-                    />
-                    <div className="flex gap-2 mt-4">
-                      <Button
-                        onClick={() => handleDecline(selectedDepositId)}
-                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                      >
-                        Confirm Decline
-                      </Button>
-                      <Button
-                        variant="outline"
-                        onClick={() => {
-                          setDeclineReason("");
-                          setSelectedDepositId(null);
-                        }}
-                      >
-                        Cancel
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-            )}
           </CardContent>
         </Card>
+
+        {/* Image Preview Modal */}
+        <Dialog open={!!imagePreviewUrl} onOpenChange={() => setImagePreviewUrl(null)}>
+          <DialogContent className="max-w-4xl">
+            <DialogHeader>
+              <DialogTitle>Proof of Payment</DialogTitle>
+            </DialogHeader>
+            <div className="relative w-full h-96 md:h-full min-h-96">
+              <Image
+                src={imagePreviewUrl!}
+                alt="Proof of payment"
+                fill
+                className="object-contain rounded-lg"
+                unoptimized
+              />
+            </div>
+            <div className="flex justify-end gap-3 mt-4">
+              <Button
+                onClick={() => {
+                  const deposit = deposits.find(d => d.proof_of_payment === imagePreviewUrl);
+                  if (deposit) handleManualConfirm(deposit.id);
+                  setImagePreviewUrl(null);
+                }}
+                className="bg-green-600 hover:bg-green-700 text-white"
+              >
+                <CheckCircle className="h-4 w-4 mr-2" />
+                Confirm & Credit Balance
+              </Button>
+              <Button variant="outline" onClick={() => setImagePreviewUrl(null)}>
+                Close
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Fail Modal */}
+        <Dialog open={!!selectedDepositId} onOpenChange={(open) => !open && (setSelectedDepositId(null), setFailReason(""))}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Mark Deposit #{selectedDepositId} as Failed</DialogTitle>
+            </DialogHeader>
+            <Label>Reason for failure</Label>
+            <Input value={failReason} onChange={(e) => setFailReason(e.target.value)} placeholder="e.g., Fake screenshot, wrong network" />
+            <div className="flex gap-3 mt-4">
+              <Button onClick={handleFail}>Confirm Fail</Button>
+              <Button variant="outline" onClick={() => { setSelectedDepositId(null); setFailReason(""); }}>
+                Cancel
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </main>
     </div>
   );
