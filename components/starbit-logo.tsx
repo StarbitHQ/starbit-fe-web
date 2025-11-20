@@ -23,7 +23,7 @@ export function StarBitLogo({ className = "h-8 w-auto" }: { className?: string }
           </defs>
         </svg>
       </div>
-      <span className="text-xl font-bold text-foreground">StarBit</span>
+      <span className="text-xl font-bold text-foreground">StarBiit</span>
     </div>
   )
 }
