@@ -14,7 +14,18 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Wallet, CheckCircle, AlertCircle, ArrowLeft, Loader2, Copy, RefreshCw, Upload, Image as ImageIcon, X } from "lucide-react";
+import {
+  Wallet,
+  CheckCircle,
+  AlertCircle,
+  ArrowLeft,
+  Loader2,
+  Copy,
+  Upload,
+  Image as ImageIcon,
+  X,
+  RefreshCw,
+} from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState, useRef } from "react";
 import Cookies from "js-cookie";
@@ -39,9 +50,10 @@ export default function DepositPage() {
   const [txHash, setTxHash] = useState("");
   const [proofImage, setProofImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [step, setStep] = useState<"select" | "deposit">("select");
+  const [step, setStep] = useState<"select" | "deposit" | "success">("select");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+  const [lastSubmission, setLastSubmission] = useState<any>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -138,18 +150,22 @@ export default function DepositPage() {
       const json = await res.json();
 
       if (res.ok && json.success) {
+        setLastSubmission({
+          crypto: selectedCrypto,
+          amount: numAmount,
+          txHash: txHash.trim(),
+          hasImage: !!proofImage,
+          imageUrl: imagePreview,
+        });
+
         toast({
           title: "Success!",
           description: txHash.trim()
-            ? "Verification started automatically"
+            ? "Transaction submitted — auto-verification started"
             : "Proof uploaded — admin will review soon",
         });
-        setStep("select");
-        setSelectedCrypto(null);
-        setAmount("");
-        setTxHash("");
-        setProofImage(null);
-        setImagePreview(null);
+
+        setStep("success");
       } else {
         throw new Error(json.message || "Submission failed");
       }
@@ -169,7 +185,102 @@ export default function DepositPage() {
     setProofImage(null);
     setImagePreview(null);
     setError("");
+    setLastSubmission(null);
   };
+
+  // SUCCESS SCREEN
+  if (step === "success" && lastSubmission) {
+    const isAuto = !!lastSubmission.txHash;
+
+    return (
+      <div className="min-h-screen bg-background">
+        <NavHeader isAuthenticated />
+        <main className="container mx-auto px-4 py-12">
+          <div className="max-w-2xl mx-auto text-center">
+            <div className="mb-8">
+              <CheckCircle className="h-20 w-20 text-green-500 mx-auto" />
+              <h1 className="text-4xl font-bold mt-6">Deposit Submitted Successfully!</h1>
+              <p className="text-xl text-muted-foreground mt-4">
+                {isAuto
+                  ? "Your transaction is being verified automatically"
+                  : "Your proof has been uploaded — admin will review shortly"}
+              </p>
+            </div>
+
+            <Card className="mt-8">
+              <CardHeader>
+                <CardTitle>Deposit Details</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-6 text-left">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Cryptocurrency</p>
+                    <p className="font-bold text-lg">
+                      {lastSubmission.crypto.symbol} ({lastSubmission.crypto.network})
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Amount</p>
+                    <p className="font-bold text-2xl text-primary">
+                      {lastSubmission.amount} {lastSubmission.crypto.symbol}
+                    </p>
+                  </div>
+                </div>
+
+                {isAuto ? (
+                  <div>
+                    <p className="text-sm text-muted-foreground">Transaction Hash</p>
+                    <div className="flex items-center gap-2 bg-muted/50 p-3 rounded-lg font-mono text-sm break-all">
+                      {lastSubmission.txHash}
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => navigator.clipboard.writeText(lastSubmission.txHash)}
+                      >
+                        <Copy className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    <Badge className="mt-2" variant="secondary">
+                      Auto-Verification Active
+                    </Badge>
+                  </div>
+                ) : (
+                  <div>
+                    <p className="text-sm text-muted-foreground">Proof Uploaded</p>
+                    {lastSubmission.imageUrl && (
+                      <div className="mt-3">
+                        <img
+                          src={lastSubmission.imageUrl}
+                          alt="Proof"
+                          className="max-h-64 rounded-lg mx-auto border"
+                        />
+                      </div>
+                    )}
+                    <Badge className="mt-3" variant="outline">
+                      Manual Review Required
+                    </Badge>
+                  </div>
+                )}
+
+                <div className="pt-6 border-t flex gap-4">
+                  <Link href="/dashboard" className="flex-1">
+                    <Button variant="outline" className="w-full">
+                      <ArrowLeft className="h-4 w-4 mr-2" />
+                      Back to Dashboard
+                    </Button>
+                  </Link>
+                  <Button onClick={reset} className="flex-1">
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                    New Deposit
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
