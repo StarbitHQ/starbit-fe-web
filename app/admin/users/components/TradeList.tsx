@@ -25,19 +25,16 @@ export const TradeList = ({ trades }: Props) => {
                 t.type === "buy" ? "bg-green-500/10" : "bg-red-500/10"
               }`}
             >
-              {t.type === "buy" ? (
                 <TrendingUp className="h-4 w-4 text-green-500" />
-              ) : (
-                <TrendingDown className="h-4 w-4 text-red-500" />
-              )}
+              
             </div>
             <div>
-              {/* <p className="font-medium text-foreground">
-                {t.type.toUpperCase()} {t.pair}
-              </p> */}
-              <p className="text-xs text-muted-foreground">
-                {t.amount} @ {t.price}
+              <p className="font-medium text-foreground">
+                {/* {t.type.toUpperCase()} {t.pair} */}
+                                {t.type} {t.pair}
+
               </p>
+             
             </div>
           </div>
 
