@@ -4,14 +4,81 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { StarBitLogo } from "./starbit-logo";
 import { Button } from "./ui/button";
-import { Menu, X, User, LogOut, Settings } from "lucide-react";
-import { useState } from "react";
+import { Menu, X, User, LogOut, Settings, Sun, Moon } from "lucide-react"; 
+import { useState, useEffect } from "react"; 
 import { useToast } from "@/hooks/use-toast";
 import Cookies from "js-cookie";
+import { useTheme } from "next-themes"; 
 
 function deleteCookie(name: string) {
   document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 UTC;path=/;`;
 }
+
+// --- Dark Mode Toggle Component ---
+function ThemeToggle() {
+  const { setTheme, theme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) {
+    return <Button variant="ghost" size="icon" disabled className="w-9 h-9" />;
+  }
+
+  const toggleTheme = () => {
+    setTheme(theme === "dark" ? "light" : "dark");
+  };
+
+  return (
+    <Button variant="ghost" size="icon" onClick={toggleTheme} aria-label="Toggle dark mode">
+      <Sun className="h-5 w-5 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+      <Moon className="absolute h-5 w-5 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+      <span className="sr-only">Toggle theme</span>
+    </Button>
+  );
+}
+// ---------------------------------
+
+// --- Mobile Theme Toggle (For Mobile Menu List) ---
+// This is a special version to render as a full-width list item
+function MobileThemeToggle() {
+    const { setTheme, theme } = useTheme();
+    const [mounted, setMounted] = useState(false);
+  
+    useEffect(() => {
+      setMounted(true);
+    }, []);
+  
+    if (!mounted) {
+      return null; 
+    }
+  
+    const isDark = theme === "dark";
+
+    return (
+        <Button
+            variant="ghost"
+            size="sm"
+            className="gap-2 justify-start w-full"
+            onClick={() => setTheme(isDark ? "light" : "dark")}
+        >
+            {isDark ? (
+                <>
+                    <Sun className="h-4 w-4" />
+                    Light Mode
+                </>
+            ) : (
+                <>
+                    <Moon className="h-4 w-4" />
+                    Dark Mode
+                </>
+            )}
+        </Button>
+    );
+}
+
 
 export function NavHeader({
   isAuthenticated = false,
@@ -45,7 +112,7 @@ export function NavHeader({
         { href: "/admin/users", label: "Users" },
         { href: "/admin/deposits", label: "Deposits" },
         { href: "/admin/withdrawals", label: "Withdrawals" },
-        // { href: "/admin/p2p", label: "P2P Trading" },
+        // { href: "/admin/referrals", label: "Referrals" },
       ]
     : [];
 
@@ -75,6 +142,7 @@ export function NavHeader({
           <StarBitLogo />
         </Link>
 
+        {/* Desktop Navigation Links */}
         <nav className="hidden md:flex items-center gap-6">
           {navLinks.map((link) => (
             <Link
@@ -91,16 +159,11 @@ export function NavHeader({
           ))}
         </nav>
 
+        {/* Desktop Action Buttons & Theme Toggle */}
         <div className="hidden md:flex items-center gap-3">
+          <ThemeToggle /> 
           {isAuthenticated ? (
             <>
-              {/* <Link href="/profile">
-                <Button variant="ghost" size="sm" className="gap-2">
-                  <User className="h-4 w-4" />
-                  Profile
-                </Button>
-              </Link> */}
-
               <Link href="/admin/settings">
                 <Button variant="ghost" size="sm" className="gap-2">
                   <Settings className="h-4 w-4" />
@@ -137,19 +200,26 @@ export function NavHeader({
           )}
         </div>
 
-        <button
-          className="md:hidden p-2"
-          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          aria-label="Toggle menu"
-        >
-          {mobileMenuOpen ? (
-            <X className="h-6 w-6" />
-          ) : (
-            <Menu className="h-6 w-6" />
-          )}
-        </button>
+        {/* Mobile Menu Toggle & Theme Toggle in Header (Only menu button remains) */}
+        <div className="flex items-center gap-2 md:hidden">
+            {/* ThemeToggle is REMOVED from the header bar on mobile
+               and placed inside the mobile menu for a cleaner look. 
+               Only the menu button remains here: */}
+            <button
+              className="p-2"
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              aria-label="Toggle menu"
+            >
+              {mobileMenuOpen ? (
+                <X className="h-6 w-6" />
+              ) : (
+                <Menu className="h-6 w-6" />
+              )}
+            </button>
+        </div>
       </div>
 
+      {/* Mobile Menu */}
       {mobileMenuOpen && (
         <div className="md:hidden border-t border-border bg-card">
           <nav className="container mx-auto flex flex-col gap-4 p-4">
@@ -172,6 +242,9 @@ export function NavHeader({
             <div className="flex flex-col gap-2 pt-4 border-t border-border">
               {isAuthenticated ? (
                 <>
+                  <MobileThemeToggle /> {/* <-- Added Mobile Theme Toggle here */}
+                  
+                  {/* The rest of the authenticated links */}
                   <Link href="/profile">
                     <Button
                       variant="ghost"
@@ -207,7 +280,9 @@ export function NavHeader({
                   </Button>
                 </>
               ) : (
+                // Unauthenticated links remain the same
                 <>
+                  <MobileThemeToggle /> {/* <-- Added Mobile Theme Toggle here for unauthenticated users too */}
                   <Link href="/login">
                     <Button variant="ghost" size="sm" className="w-full">
                       Login

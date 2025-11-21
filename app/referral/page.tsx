@@ -11,12 +11,12 @@ import { Users, Copy, Share2, DollarSign, TrendingUp, Gift, Check } from "lucide
 import { useToast } from "@/hooks/use-toast"
 import { API_BASE_URL } from "@/lib/api"
 
-// Utility function to get cookie by name
+// Utility: get cookie
 const getCookie = (name: string): string | null => {
-  const value = `; ${document.cookie}`;
-  const parts = value.split(`; ${name}=`);
-  if (parts.length === 2) return parts.pop()?.split(';').shift() || null;
-  return null;
+  const value = `; ${document.cookie}`
+  const parts = value.split(`; ${name}=`)
+  if (parts.length === 2) return parts.pop()?.split(";").shift() || null
+  return null
 }
 
 interface Referral {
@@ -39,67 +39,55 @@ interface ReferralData {
   }
   referrals: Referral[]
   tier: {
-    current: "Bronze" | "Silver" | "Gold"
+    current: string           // ← Now a string: "Bronze", "Silver", etc.
     progress: number
-    nextTierThreshold: number | null
-    bonus: string
+    nextTierThreshold: number
+    bonus: string             // e.g. "5% bonus"
   }
 }
 
 export default function ReferralPage() {
   const { toast } = useToast()
   const [copied, setCopied] = useState(false)
-  const [referralData, setReferralData] = useState<ReferralData>({
-    referral_code: "",
-    referral_link: "",
-    referred_by: "",
-    stats: {
-      totalReferrals: 0,
-      activeReferrals: 0,
-      totalEarnings: "$0.00",
-      pendingBonus: "$0.00",
-    },
-    referrals: [],
-    tier: {
-      current: "Bronze",
-      progress: 0,
-      nextTierThreshold: 25,
-      bonus: "5% bonus",
-    },
-  })
+  const [referralData, setReferralData] = useState<ReferralData | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
-  // Fetch referral data on component mount
   useEffect(() => {
     const fetchReferralData = async () => {
       try {
         setIsLoading(true)
-        const token = getCookie('auth_token')
-        if (!token) {
-          throw new Error('No authentication token found')
-        }
+        const token = getCookie("auth_token")
+        if (!token) throw new Error("No authentication token found")
 
         const response = await fetch(`${API_BASE_URL}/api/referrals`, {
           headers: {
             Authorization: `Bearer ${token}`,
-            Accept: 'application/json',
+            Accept: "application/json",
           },
         })
 
         if (!response.ok) {
           const errorData = await response.json()
-          throw new Error(errorData.message || 'Failed to fetch referral data')
+          throw new Error(errorData.message || "Failed to fetch referral data")
         }
 
         const data = await response.json()
+
+        // Use the exact shape returned by your backend
         setReferralData({
           ...data,
           referral_link: `${window.location.origin}/register?ref=${data.referral_code}`,
+          tier: data.tier || {
+            current: "Bronze",
+            progress: 0,
+            nextTierThreshold: 25,
+            bonus: "5% bonus",
+          },
         })
       } catch (error) {
         toast({
           title: "Error",
-          description: error instanceof Error ? error.message : "Failed to fetch referral data",
+          description: error instanceof Error ? error.message : "Failed to load referral data",
           variant: "destructive",
         })
       } finally {
@@ -111,17 +99,18 @@ export default function ReferralPage() {
   }, [toast])
 
   const handleCopy = () => {
+    if (!referralData) return
     navigator.clipboard.writeText(referralData.referral_link)
     setCopied(true)
     toast({
       title: "Copied!",
       description: "Referral link copied to clipboard",
-      className: "bg-primary text-primary-foreground",
     })
     setTimeout(() => setCopied(false), 2000)
   }
 
   const handleShare = (platform: "twitter" | "whatsapp" | "telegram") => {
+    if (!referralData) return
     const text = `Join me on StarBit, the best crypto trading platform! Use my referral code: ${referralData.referral_code}`
     const urls = {
       twitter: `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(referralData.referral_link)}`,
@@ -134,10 +123,21 @@ export default function ReferralPage() {
   if (isLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
-        <p className="text-foreground">Loading...</p>
+        <p className="text-foreground">Loading referral data...</p>
       </div>
     )
   }
+
+  if (!referralData) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <p className="text-foreground">Failed to load referral data</p>
+      </div>
+    )
+  }
+
+  const { tier } = referralData
+  const referralsNeeded = Math.max(tier.nextTierThreshold - referralData.stats.totalReferrals, 0)
 
   return (
     <div className="min-h-screen bg-background">
@@ -149,21 +149,19 @@ export default function ReferralPage() {
           <p className="text-muted-foreground">Invite friends and earn rewards together</p>
         </div>
 
-        {/* Referred By Card */}
+        {/* Referred By */}
         {referralData.referred_by && (
-          <Card className="mb-8 bg-card border-border">
+          <Card className="mb-8">
             <CardHeader>
-              <CardTitle className="text-foreground">Referred By</CardTitle>
-              <CardDescription className="text-muted-foreground">
-                You were referred to StarBit by this user
-              </CardDescription>
+              <CardTitle>Referred By</CardTitle>
+              <CardDescription>You were invited by this user</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="flex items-center gap-3">
                 <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
                   <Users className="h-5 w-5 text-primary" />
                 </div>
-                <p className="font-semibold text-foreground">{referralData.referred_by}</p>
+                <p className="font-semibold">{referralData.referred_by}</p>
               </div>
             </CardContent>
           </Card>
@@ -171,58 +169,50 @@ export default function ReferralPage() {
 
         {/* Stats Grid */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-8">
-          <Card className="bg-card border-border">
+          <Card>
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-muted-foreground mb-1">Total Referrals</p>
-                  <p className="text-2xl font-bold text-foreground">{referralData.stats.totalReferrals}</p>
+                  <p className="text-2xl font-bold">{referralData.stats.totalReferrals}</p>
                 </div>
-                <div className="p-3 rounded-lg bg-primary/10">
-                  <Users className="h-6 w-6 text-primary" />
-                </div>
+                <Users className="h-8 w-8 text-primary opacity-70" />
               </div>
             </CardContent>
           </Card>
 
-          <Card className="bg-card border-border">
+          <Card>
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-muted-foreground mb-1">Active Users</p>
-                  <p className="text-2xl font-bold text-foreground">{referralData.stats.activeReferrals}</p>
+                  <p className="text-2xl font-bold">{referralData.stats.activeReferrals}</p>
                 </div>
-                <div className="p-3 rounded-lg bg-secondary/10">
-                  <TrendingUp className="h-6 w-6 text-secondary" />
-                </div>
+                <TrendingUp className="h-8 w-8 text-green-500 opacity-70" />
               </div>
             </CardContent>
           </Card>
 
-          <Card className="bg-card border-border">
+          <Card>
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-muted-foreground mb-1">Total Earnings</p>
-                  <p className="text-2xl font-bold text-foreground">{referralData.stats.totalEarnings}</p>
+                  <p className="text-2xl font-bold">{referralData.stats.totalEarnings}</p>
                 </div>
-                <div className="p-3 rounded-lg bg-primary/10">
-                  <DollarSign className="h-6 w-6 text-primary" />
-                </div>
+                <DollarSign className="h-8 w-8 text-primary opacity-70" />
               </div>
             </CardContent>
           </Card>
 
-          <Card className="bg-card border-border">
+          <Card>
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-muted-foreground mb-1">Pending Bonus</p>
-                  <p className="text-2xl font-bold text-foreground">{referralData.stats.pendingBonus}</p>
+                  <p className="text-2xl font-bold">{referralData.stats.pendingBonus}</p>
                 </div>
-                <div className="p-3 rounded-lg bg-secondary/10">
-                  <Gift className="h-6 w-6 text-secondary" />
-                </div>
+                <Gift className="h-8 w-8 text-purple-500 opacity-70" />
               </div>
             </CardContent>
           </Card>
@@ -230,70 +220,43 @@ export default function ReferralPage() {
 
         <div className="grid gap-6 lg:grid-cols-3">
           {/* Referral Link Card */}
-          <Card className="lg:col-span-2 bg-card border-border">
+          <Card className="lg:col-span-2">
             <CardHeader>
-              <CardTitle className="text-foreground">Your Referral Link</CardTitle>
-              <CardDescription className="text-muted-foreground">
-                Share this link with friends to earn rewards
-              </CardDescription>
+              <CardTitle>Your Referral Link</CardTitle>
+              <CardDescription>Share this link to earn rewards</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-6">
               <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">Referral Code</label>
+                <label className="text-sm font-medium">Referral Code</label>
                 <div className="flex gap-2">
-                  <Input value={referralData.referral_code} readOnly className="bg-muted border-input text-foreground font-mono" />
-                  <Button
-                    onClick={handleCopy}
-                    className="bg-primary text-primary-foreground hover:bg-primary/90 gap-2 min-w-[100px]"
-                  >
-                    {copied ? (
-                      <>
-                        <Check className="h-4 w-4" />
-                        Copied
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="h-4 w-4" />
-                        Copy
-                      </>
-                    )}
+                  <Input value={referralData.referral_code} readOnly className="font-mono" />
+                  <Button onClick={handleCopy} className="gap-2 min-w-[100px]">
+                    {copied ? <><Check className="h-4 w-4" /> Copied</> : <><Copy className="h-4 w-4" /> Copy</>}
                   </Button>
                 </div>
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">Full Link</label>
+                <label className="text-sm font-medium">Full Link</label>
                 <div className="flex gap-2">
-                  <Input value={referralData.referral_link} readOnly className="bg-muted border-input text-foreground text-sm" />
-                  <Button onClick={handleCopy} variant="outline" className="bg-transparent gap-2">
+                  <Input value={referralData.referral_link} readOnly className="text-sm" />
+                  <Button onClick={handleCopy} variant="outline">
                     <Copy className="h-4 w-4" />
                   </Button>
                 </div>
               </div>
 
-              <div className="pt-4">
-                <p className="text-sm font-medium text-foreground mb-3">Share on Social Media</p>
-                <div className="flex gap-3">
-                  <Button
-                    onClick={() => handleShare("twitter")}
-                    className="flex-1 bg-[#1DA1F2] text-white hover:bg-[#1DA1F2]/90 gap-2"
-                  >
-                    <Share2 className="h-4 w-4" />
-                    Twitter
+              <div>
+                <p className="text-sm font-medium mb-3">Share on Social Media</p>
+                <div className="grid grid-cols-3 gap-3">
+                  <Button onClick={() => handleShare("twitter")} className="bg-[#1DA1F2] hover:bg-[#1DA1F2]/90">
+                    <Share2 className="h-4 w-4 mr-2" /> Twitter
                   </Button>
-                  <Button
-                    onClick={() => handleShare("whatsapp")}
-                    className="flex-1 bg-[#25D366] text-white hover:bg-[#25D366]/90 gap-2"
-                  >
-                    <Share2 className="h-4 w-4" />
-                    WhatsApp
+                  <Button onClick={() => handleShare("whatsapp")} className="bg-[#25D366] hover:bg-[#25D366]/90">
+                    <Share2 className="h-4 w-4 mr-2" /> WhatsApp
                   </Button>
-                  <Button
-                    onClick={() => handleShare("telegram")}
-                    className="flex-1 bg-[#0088cc] text-white hover:bg-[#0088cc]/90 gap-2"
-                  >
-                    <Share2 className="h-4 w-4" />
-                    Telegram
+                  <Button onClick={() => handleShare("telegram")} className="bg-[#0088cc] hover:bg-[#0088cc]/90">
+                    <Share2 className="h-4 w-4 mr-2" /> Telegram
                   </Button>
                 </div>
               </div>
@@ -301,81 +264,77 @@ export default function ReferralPage() {
           </Card>
 
           {/* Progress Card */}
-          <Card className="bg-gradient-to-br from-primary/10 via-card to-secondary/10 border-primary/20">
+          <Card className="bg-gradient-to-br from-primary/10 to-secondary/5">
             <CardHeader>
-              <CardTitle className="text-foreground">Referral Progress</CardTitle>
-              <CardDescription className="text-muted-foreground">Your journey to the next tier</CardDescription>
+              <CardTitle>Referral Tier</CardTitle>
+              <CardDescription>Your current level & progress</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <div>
                 <div className="flex justify-between text-sm mb-2">
-                  <span className="text-muted-foreground">Current Tier: {referralData.tier.current}</span>
-                  <span className="font-semibold text-foreground">{referralData.stats.totalReferrals}/{referralData.tier.nextTierThreshold || "∞"}</span>
+                  <span className="text-muted-foreground">
+                    Current Tier: <strong className="text-foreground">{tier.current}</strong>
+                  </span>
+                  <span className="font-mono">
+                    {referralData.stats.totalReferrals} / {tier.nextTierThreshold}
+                  </span>
                 </div>
-                <Progress value={referralData.tier.progress} className="h-2" />
+                <Progress value={tier.progress} className="h-3" />
                 <p className="text-xs text-muted-foreground mt-2">
-                  {referralData.tier.nextTierThreshold
-                    ? `${referralData.tier.nextTierThreshold - referralData.stats.totalReferrals} more referrals to reach ${referralData.tier.current === "Bronze" ? "Silver" : "Gold"} tier`
-                    : "Max tier reached"}
+                  {tier.progress >= 100 ? (
+                    "You’ve reached the highest tier!"
+                  ) : (
+                    <>Need <strong>{referralsNeeded}</strong> more referral{referralsNeeded !== 1 && "s"} to level up</>
+                  )}
                 </p>
               </div>
 
-              <div className="space-y-3">
-                <div className="flex items-center justify-between p-3 rounded-lg bg-card/50">
-                  <span className="text-sm text-foreground">Bronze (0-24)</span>
-                  <Badge className="bg-[#CD7F32] text-white">5% bonus</Badge>
-                </div>
-                <div className="flex items-center justify-between p-3 rounded-lg bg-card/50">
-                  <span className="text-sm text-foreground">Silver (25-49)</span>
-                  <Badge className="bg-[#C0C0C0] text-white">10% bonus</Badge>
-                </div>
-                <div className="flex items-center justify-between p-3 rounded-lg bg-card/50">
-                  <span className="text-sm text-foreground">Gold (50+)</span>
-                  <Badge className="bg-[#FFD700] text-black">15% bonus</Badge>
-                </div>
+              <div className="p-4 bg-primary/10 rounded-lg text-center border border-primary/20">
+                <p className="text-lg font-bold text-primary">{tier.bonus}</p>
+                <p className="text-xs text-muted-foreground mt-1">on all referral initial deposits</p>
               </div>
             </CardContent>
           </Card>
         </div>
 
         {/* Referrals List */}
-        <Card className="mt-6 bg-card border-border">
+        <Card className="mt-8">
           <CardHeader>
-            <CardTitle className="text-foreground">Your Referrals</CardTitle>
-            <CardDescription className="text-muted-foreground">Track your referred users and earnings</CardDescription>
+            <CardTitle>Your Referrals</CardTitle>
+            <CardDescription>Users who joined using your link</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-3">
-              {referralData.referrals.map((referral) => (
-                <div key={referral.id} className="flex items-center justify-between p-4 rounded-lg bg-muted/50">
-                  <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-                      <Users className="h-5 w-5 text-primary" />
+            {referralData.referrals.length === 0 ? (
+              <div className="text-center py-12">
+                <Users className="h-16 w-16 mx-auto mb-4 text-muted-foreground/50" />
+                <p className="text-muted-foreground">No referrals yet. Start sharing your link!</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {referralData.referrals.map((ref) => (
+                  <div key={ref.id} className="flex items-center justify-between p-4 rounded-lg bg-muted/50">
+                    <div className="flex items-center gap-4">
+                      <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                        <Users className="h-5 w-5 text-primary" />
+                      </div>
+                      <div>
+                        <p className="font-semibold">{ref.name}</p>
+                        <p className="text-sm text-muted-foreground">Joined {ref.date}</p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="font-semibold text-foreground">{referral.name}</p>
-                      <p className="text-sm text-muted-foreground">{referral.date}</p>
+                    <div className="flex items-center gap-6">
+                      <div className="text-right">
+                        <p className="font-semibold text-foreground">{ref.earnings}</p>
+                        <p className="text-xs text-muted-foreground">Earned</p>
+                      </div>
+                      <Badge variant={ref.status === "active" ? "default" : "secondary"}>
+                        {ref.status}
+                      </Badge>
                     </div>
                   </div>
-                  <div className="flex items-center gap-4">
-                    <div className="text-right">
-                      <p className="font-semibold text-foreground">{referral.earnings}</p>
-                      <p className="text-xs text-muted-foreground">Earned</p>
-                    </div>
-                    <Badge
-                      variant={referral.status === "active" ? "default" : "secondary"}
-                      className={
-                        referral.status === "active"
-                          ? "bg-primary/10 text-primary hover:bg-primary/20"
-                          : "bg-secondary/10 text-secondary hover:bg-secondary/20"
-                      }
-                    >
-                      {referral.status}
-                    </Badge>
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
       </main>

@@ -10,6 +10,10 @@ import "./globals.css"
 export const metadata: Metadata = {
   title: "StarBiit - Crypto Copytrading Platform",
   description: "Modern P2P crypto trading and copytrading platform",
+  // NEW: Add this icons config – points to your public/icon.png
+  icons: {
+    icon: '/icon.png',  // Auto-generates <link rel="icon" href="/icon.png" type="image/png" sizes="any" />
+  },
 }
 
 export default function RootLayout({

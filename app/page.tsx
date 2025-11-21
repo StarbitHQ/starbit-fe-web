@@ -4,9 +4,12 @@ import { Card } from "@/components/ui/card"
 import { StarBitLogo } from "@/components/starbit-logo"
 import { ArrowRight, Shield, TrendingUp, Users, Zap } from "lucide-react"
 
+
 export default function LandingPage() {
   return (
+    
     <div className="min-h-screen bg-background">
+      
       {/* Hero Section */}
       <header className="border-b border-border">
         <div className="container mx-auto flex h-16 items-center justify-between px-4">

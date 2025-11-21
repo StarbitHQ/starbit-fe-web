@@ -21,12 +21,12 @@ import Cookies from "js-cookie";
 
 type QuickActionsProps = {
   userId: number;
-  currentBalance?: string;
+  currentaccount_bal?: string;
   isAdmin?: boolean;
   onUserUpdate?: () => void;
 };
 
-type Action = "email" | "balance" | "suspend" | "promote" | null;
+type Action = "email" | "account_bal" | "suspend" | "promote" | null;
 
 type Role = {
   key: string;
@@ -47,10 +47,10 @@ const emailSchema = z.object({
     .max(2000, "Message too long"),
 });
 
-const balanceSchema = z.object({
-  balance: z.coerce
+const account_balSchema = z.object({
+  account_bal: z.coerce
     .number()
-    .positive("Balance must be a positive number")
+    .positive("account_bal must be a positive number")
     .refine(
       (v) =>
         !v.toString().includes(".") || v.toString().split(".")[1].length <= 2,
@@ -66,7 +66,7 @@ const promoteSchema = z.object({
 
 export const QuickActions = ({
   userId,
-  currentBalance = "0.00",
+  currentaccount_bal = "0.00",
   isAdmin = false,
   onUserUpdate,
 }: QuickActionsProps) => {
@@ -86,9 +86,9 @@ export const QuickActions = ({
     defaultValues: { subject: "", message: "" },
   });
 
-  const balanceForm = useForm<z.infer<typeof balanceSchema>>({
-    resolver: zodResolver(balanceSchema),
-    defaultValues: { balance: parseFloat(currentBalance) },
+  const account_balForm = useForm<z.infer<typeof account_balSchema>>({
+    resolver: zodResolver(account_balSchema),
+    defaultValues: { account_bal: parseFloat(currentaccount_bal) },
   });
 
   const promoteForm = useForm<z.infer<typeof promoteSchema>>({
@@ -177,25 +177,25 @@ export const QuickActions = ({
     }
   };
 
-  // Inside handleBalance function — this is the key fix:
-const handleBalance = async (data: z.infer<typeof balanceSchema>) => {
+  // Inside handleaccount_bal function — this is the key fix:
+const handleaccount_bal = async (data: z.infer<typeof account_balSchema>) => {
   setLoading(true);
   setResult(null);
   try {
     await api.patch(`/api/admin/users/${userId}/balance`, {
-      account_bal: parseFloat(data.balance.toFixed(2)), // Fixed: send account_bal
+      account_bal: parseFloat(data.account_bal.toFixed(2)), // Fixed: send account_bal
     });
 
     setResult("success");
-    toast({ title: "Success", description: "Balance updated successfully" });
-    balanceForm.reset({ balance: data.balance });
+    toast({ title: "Success", description: "account_bal updated successfully" });
+    account_balForm.reset({ account_bal: data.account_bal });
     onUserUpdate?.();
     setTimeout(() => setActive(null), 1500);
   } catch (e: any) {
     setResult("error");
     toast({
       title: "Error",
-      description: e.response?.data?.message || "Failed to update balance",
+      description: e.response?.data?.message || "Failed to update account_bal",
       variant: "destructive",
     });
   } finally {
@@ -250,7 +250,7 @@ const handleBalance = async (data: z.infer<typeof balanceSchema>) => {
     setActive(null);
     setResult(null);
     emailForm.reset();
-    balanceForm.reset();
+    account_balForm.reset();
     promoteForm.reset();
   };
 
@@ -277,7 +277,7 @@ const handleBalance = async (data: z.infer<typeof balanceSchema>) => {
           <Button
             variant="outline"
             className="flex-1 min-w-[140px] justify-center gap-2"
-            onClick={() => setActive("balance")}
+            onClick={() => setActive("account_bal")}
             disabled={loading}
           >
             <DollarSign className="h-4 w-4" />
@@ -384,8 +384,8 @@ const handleBalance = async (data: z.infer<typeof balanceSchema>) => {
           </div>
         )}
 
-        {/* ---------- Edit Balance Form ---------- */}
-        {active === "balance" && (
+        {/* ---------- Edit account_bal Form ---------- */}
+        {active === "account_bal" && (
           <div className="rounded-md border bg-background p-4 space-y-3">
             <h4 className="font-medium flex items-center gap-1">
               <DollarSign className="h-4 w-4" />
@@ -393,20 +393,20 @@ const handleBalance = async (data: z.infer<typeof balanceSchema>) => {
             </h4>
 
             <form
-              onSubmit={balanceForm.handleSubmit(handleBalance)}
+              onSubmit={account_balForm.handleSubmit(handleaccount_bal)}
               className="space-y-3"
             >
               <input
                 type="number"
                 step="0.01"
-                {...balanceForm.register("balance")}
+                {...account_balForm.register("account_bal")}
                 placeholder="0.00"
                 className="w-full rounded border p-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                 disabled={loading}
               />
-              {balanceForm.formState.errors.balance && (
+              {account_balForm.formState.errors.account_bal && (
                 <p className="text-sm text-red-500">
-                  {balanceForm.formState.errors.balance.message}
+                  {account_balForm.formState.errors.account_bal.message}
                 </p>
               )}
 
