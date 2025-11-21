@@ -177,35 +177,37 @@ export const QuickActions = ({
     }
   };
 
-  const handleBalance = async (data: z.infer<typeof balanceSchema>) => {
-    setLoading(true);
-    setResult(null);
-    try {
-      await api.patch(`/users/${userId}/balance`, {
-        balance: data.balance.toFixed(2),
-      });
-      setResult("success");
-      toast({ title: "Success", description: "Balance updated" });
-      balanceForm.reset({ balance: data.balance });
-      onUserUpdate?.();
-      setTimeout(() => setActive(null), 1500);
-    } catch (e: any) {
-      setResult("error");
-      toast({
-        title: "Error",
-        description: e.message ?? "Failed to update balance",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Inside handleBalance function — this is the key fix:
+const handleBalance = async (data: z.infer<typeof balanceSchema>) => {
+  setLoading(true);
+  setResult(null);
+  try {
+    await api.patch(`/api/admin/users/${userId}/balance`, {
+      account_bal: parseFloat(data.balance.toFixed(2)), // Fixed: send account_bal
+    });
+
+    setResult("success");
+    toast({ title: "Success", description: "Balance updated successfully" });
+    balanceForm.reset({ balance: data.balance });
+    onUserUpdate?.();
+    setTimeout(() => setActive(null), 1500);
+  } catch (e: any) {
+    setResult("error");
+    toast({
+      title: "Error",
+      description: e.response?.data?.message || "Failed to update balance",
+      variant: "destructive",
+    });
+  } finally {
+    setLoading(false);
+  }
+};
 
   const handleSuspend = async () => {
     setLoading(true);
     setResult(null);
     try {
-      await api.post(`/users/${userId}/suspend`, {});
+      await api.post(`api/admin/users/${userId}/suspend`, {});
       setResult("success");
       toast({ title: "Success", description: "User suspended" });
       onUserUpdate?.();

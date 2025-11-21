@@ -2,15 +2,16 @@ import { TableCell, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Users, Mail, Phone, Eye } from "lucide-react";
-import { getStatusBadge, getKycBadge } from "../utils/badge";
 import type { User } from "../types/user";
 
 interface Props {
   user: User;
-  onView: (user: User) => void;  
+  onView: (user: User) => void;
 }
 
 export const UserRow = ({ user, onView }: Props) => {
+  const isBlocked = user.is_blocked === 1 || user.is_blocked === true;
+
   return (
     <TableRow className="border-border hover:bg-muted/50">
       <TableCell>
@@ -40,21 +41,43 @@ export const UserRow = ({ user, onView }: Props) => {
         </div>
       </TableCell>
 
+      {/* Status Badge: Active (green) / Suspended (red) */}
       <TableCell>
-        <Badge className={getStatusBadge(user.status)}>{user.status}</Badge>
+        <Badge
+          variant={isBlocked ? "destructive" : "default"}
+          className={
+            isBlocked
+              ? "bg-red-500 text-white hover:bg-red-600"
+              : "bg-green-500 text-white hover:bg-green-600"
+          }
+        >
+          {isBlocked ? "Suspended" : "Active"}
+        </Badge>
       </TableCell>
 
+      {/* KYC Badge */}
       <TableCell>
-        <Badge className={getKycBadge(user.kyc_status)}>
-          {user.kyc_status}
+        <Badge
+          variant="outline"
+          className={
+            user.kyc_status === "verified"
+              ? "border-green-500 text-green-500"
+              : user.kyc_status === "pending"
+              ? "border-yellow-500 text-yellow-500"
+              : "border-red-500 text-red-500"
+          }
+        >
+          {user.kyc_status || "Not Started"}
         </Badge>
       </TableCell>
 
       <TableCell className="font-semibold text-foreground">
-        {user.balance}
+        {user.account_bal}
       </TableCell>
-      <TableCell className="text-foreground">{user.total_trades}</TableCell>
-      <TableCell className="text-foreground">{user.referral_count}</TableCell>
+      <TableCell className="text-foreground">{user.trades_count}</TableCell>
+      <TableCell className="text-foreground">
+        {user.referred_users_count}
+      </TableCell>
 
       <TableCell>
         <div className="text-sm">
@@ -72,11 +95,11 @@ export const UserRow = ({ user, onView }: Props) => {
       <TableCell>
         <Button
           size="sm"
+          variant="outline"
           onClick={() => onView(user)}
-          disabled={!user.id} 
-          className="..."
+          disabled={!user.id}
         >
-          <Eye className="h-3 w-3" />
+          <Eye className="h-3 w-3 mr-1" />
           View
         </Button>
       </TableCell>

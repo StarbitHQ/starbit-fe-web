@@ -175,11 +175,9 @@ export const UserDetailsDialog = ({
             </CardContent>
           </Card>
 
-
-
           <QuickActions
             userId={user.id}
-            currentBalance={user.balance}
+            currentBalance={user.account_bal}
             isAdmin={user.type === "admin"}
             onUserUpdate={handleUserUpdate}
           />
@@ -200,10 +198,7 @@ export const UserDetailsDialog = ({
             <TabsContent value="referrals">
               <Card className="bg-muted/30 border-border">
                 <CardContent className="p-4">
-                  <ReferralList
-                    referrals={user.referrals?.referrals ?? []}
-                    onView={onViewUser}
-                  />
+                  <ReferralList user={user} onView={onViewUser} />{" "}
                 </CardContent>
               </Card>
             </TabsContent>
@@ -216,7 +211,6 @@ export const UserDetailsDialog = ({
               </Card>
             </TabsContent>
           </Tabs>
-        
         </div>
       </DialogContent>
     </Dialog>

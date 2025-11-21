@@ -217,7 +217,7 @@ export default function DashboardPage() {
                 Top Performing Coins
               </CardTitle>
               <CardDescription className="text-muted-foreground">
-                Biggest gainers in the last 24 hours
+                Biggest movers in the last 24 hours
               </CardDescription>
             </CardHeader>
 
@@ -416,7 +416,7 @@ export default function DashboardPage() {
                       <div className="flex items-center gap-3">
                         {trade.status === "completed" ? (
                           <CheckCircle2 className="h-5 w-5 text-primary" />
-                        ) : trade.status === "pending" ? (
+                        ) : trade.status === "active" ? (
                           <Clock className="h-5 w-5 text-secondary" />
                         ) : (
                           <XCircle className="h-5 w-5 text-destructive" />

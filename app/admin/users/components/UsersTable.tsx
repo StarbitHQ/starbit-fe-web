@@ -50,9 +50,9 @@ export const UsersTable = ({ users, sortField, sortDir, onSort, onView }: Props)
             </TableHead>
             <TableHead className={headerClass}>KYC</TableHead>
             <TableHead className={headerClass}>
-              <Button variant="ghost" onClick={() => onSort("balance")} className="gap-1">
+              <Button variant="ghost" onClick={() => onSort("account_bal")} className="gap-1">
                 Balance
-                {getSortIcon("balance")}
+                {getSortIcon("account_bal")}
               </Button>
             </TableHead>
             <TableHead className={headerClass}>

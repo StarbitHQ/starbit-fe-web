@@ -55,7 +55,7 @@ export interface User {
   email: string;
   phone: string | null;
   status: UserStatus;
-  balance: string;
+  account_bal: string;
   kyc_status: KycStatus;
   created_at: string;
   last_login: string | null;
