@@ -11,15 +11,32 @@ interface TradeCardProps {
   showCancelButton?: boolean;
 }
 
-export function TradeCard({ trade, getProgress, handleCancelTrade, showCancelButton }: TradeCardProps) {
+export function TradeCard({
+  trade,
+  getProgress,
+  handleCancelTrade,
+  showCancelButton,
+}: TradeCardProps) {
   // Debug log to verify data
 
   // Fallback for tradingPair if missing
-  const tradingPair = trade.tradingPair || { base_name: "Unknown Pair", base_symbol: "N/A", quote_symbol: "N/A", investment_duration: 0, base_icon_url: null };
+  const tradingPair = trade.tradingPair || {
+    base_name: "Unknown Pair",
+    base_symbol: "N/A",
+    quote_symbol: "N/A",
+    investment_duration: 0,
+    base_icon_url: null,
+  };
 
   // Validate and construct a valid image URL
-  const isValidUrl = (url: string | null) => url && (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('/'));
-  const iconUrl = isValidUrl(tradingPair.base_icon_url) ? tradingPair.base_icon_url : "/placeholder-icon.png";
+  const isValidUrl = (url: string | null) =>
+    url &&
+    (url.startsWith("http://") ||
+      url.startsWith("https://") ||
+      url.startsWith("/"));
+  const iconUrl = isValidUrl(tradingPair.base_icon_url)
+    ? tradingPair.base_icon_url
+    : "/placeholder-icon.png";
 
   return (
     <div className="p-4 rounded-lg bg-muted/50">
@@ -45,7 +62,6 @@ export function TradeCard({ trade, getProgress, handleCancelTrade, showCancelBut
             <p className="font-semibold text-foreground">
               ${trade.investment_amount}
             </p>
-            
           </div>
           <Badge
             variant={trade.status === "active" ? "default" : "secondary"}
@@ -61,10 +77,19 @@ export function TradeCard({ trade, getProgress, handleCancelTrade, showCancelBut
       </div>
       <div className="mt-3 grid grid-cols-2 md:grid-cols-4 gap-2 text-sm text-muted-foreground">
         {/* <p>Progress: {Math.round(getProgress(trade))}%</p> */}
-        <p>Duration: {tradingPair.investment_duration} days</p>
+        <p>
+          Duration:{" "}
+          {Math.ceil(
+            (new Date(trade.ends_at).getTime() -
+              new Date(trade.started_at).getTime()) /
+              (1000 * 60 * 60 * 24)
+          )}{" "}
+          days
+        </p>
         <p>Started: {new Date(trade.started_at).toLocaleDateString()}</p>
         <p>Ends: {new Date(trade.ends_at).toLocaleDateString()}</p>
       </div>
+
       {/* {showCancelButton && handleCancelTrade && (
         <Button
           variant="destructive"

@@ -29,6 +29,7 @@ interface TradingPair {
   min_return_percentage: number;
   max_return_percentage: number;
   investment_duration: number;
+  max_investment_duration: number;
   is_active: boolean;
   sort_order: number;
   current_price?: number;
@@ -404,8 +405,8 @@ export default function AdminTradingPairsPage() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="USDT">USDT</SelectItem>
-                      <SelectItem value="BTC">BTC</SelectItem>
-                      <SelectItem value="ETH">ETH</SelectItem>
+                      {/* <SelectItem value="BTC">BTC</SelectItem> */}
+                      {/* <SelectItem value="ETH">ETH</SelectItem> */}
                     </SelectContent>
                   </Select>
                 </div>
@@ -509,6 +510,27 @@ export default function AdminTradingPairsPage() {
                       {...register("investment_duration", {
                         required: "Investment duration is required",
                         min: { value: 1, message: "Must be at least 1 day" },
+                        valueAsNumber: true,
+                      })}
+                    />
+                    {errors.investment_duration && (
+                      <p className="text-sm text-destructive mt-1">{errors.investment_duration.message}</p>
+                    )}
+                  </div>
+                </div>
+
+                 <div className="space-y-2">
+                  <Label htmlFor="investment_duration" className="text-foreground">Max Investment Duration (days)</Label>
+                  <div className="relative">
+                    <Clock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      id="investment_duration"
+                      type="number"
+                      placeholder="1"
+                      className="pl-10 bg-background border-input text-foreground"
+                      {...register("max_investment_duration", {
+                        required: "Investment duration is required",
+                        min: { value: 1, message: "Must be at least 2 days" },
                         valueAsNumber: true,
                       })}
                     />

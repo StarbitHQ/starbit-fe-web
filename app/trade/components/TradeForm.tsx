@@ -11,7 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { DollarSign } from "lucide-react";
+import { DollarSign, Clock } from "lucide-react";
 import { TradingPair, FormData } from "../lib/types";
 import { API_BASE_URL } from "@/lib/api";
 import { getCookie } from "../lib/utils";
@@ -35,6 +35,7 @@ export function TradeForm({ availablePairs, loading, fetchData }: TradeFormProps
     formState: { errors },
   } = useForm<FormData>();
   const investmentAmount = watch("investment_amount");
+  const tradeDuration = watch("trade_duration");
 
   const getAuthHeaders = () => {
     const token = getCookie("auth_token");
@@ -84,6 +85,13 @@ export function TradeForm({ availablePairs, loading, fetchData }: TradeFormProps
   const handleSelectPair = (pair: TradingPair) => {
     setSelectedPair(pair);
     setValue("trading_pair_id", pair.id);
+    // Set default duration to the minimum
+    setValue("trade_duration", pair.investment_duration);
+  };
+
+  const handleFormSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    handleSubmit(onSubmit)(e);
   };
 
   return (
@@ -144,7 +152,7 @@ export function TradeForm({ availablePairs, loading, fetchData }: TradeFormProps
                       {pair.max_investment.toFixed(2)}
                     </p>
                     <p className="text-sm text-muted-foreground">
-                      {pair.investment_duration} days
+                      {pair.investment_duration} - {pair.max_investment_duration} days
                     </p>
                   </div>
                 </div>
@@ -153,7 +161,7 @@ export function TradeForm({ availablePairs, loading, fetchData }: TradeFormProps
           </div>
         )}
         {selectedPair && (
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 mt-4">
+          <div onSubmit={handleFormSubmit} className="space-y-4 mt-4">
             <div className="space-y-2">
               <Label className="text-foreground">Selected Pair</Label>
               <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
@@ -180,6 +188,43 @@ export function TradeForm({ availablePairs, loading, fetchData }: TradeFormProps
                 </div>
               </div>
             </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="trade_duration" className="text-foreground">
+                Trade Duration (Days)
+              </Label>
+              <div className="relative">
+                <Clock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  id="trade_duration"
+                  type="number"
+                  step="1"
+                  placeholder={`${selectedPair.investment_duration} - ${selectedPair.max_investment_duration} days`}
+                  className="pl-10 bg-background border-input text-foreground"
+                  {...register("trade_duration", {
+                    required: "Trade duration is required",
+                    min: {
+                      value: selectedPair.investment_duration,
+                      message: `Minimum duration is ${selectedPair.investment_duration} day${selectedPair.investment_duration !== 1 ? 's' : ''}`,
+                    },
+                    max: {
+                      value: selectedPair.max_investment_duration,
+                      message: `Maximum duration is ${selectedPair.max_investment_duration} days`,
+                    },
+                    valueAsNumber: true,
+                  })}
+                />
+                {errors.trade_duration && (
+                  <p className="text-sm text-destructive mt-1">
+                    {errors.trade_duration.message}
+                  </p>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Choose between {selectedPair.investment_duration} and {selectedPair.max_investment_duration} days
+              </p>
+            </div>
+
             <div className="space-y-2">
               <Label htmlFor="investment_amount" className="text-foreground">
                 Investment Amount
@@ -216,14 +261,14 @@ export function TradeForm({ availablePairs, loading, fetchData }: TradeFormProps
                 )}
               </div>
             </div>
-            {investmentAmount && selectedPair && (
-              <div className="p-3 bg-muted/50 rounded-lg">
+            
+            {investmentAmount && tradeDuration && selectedPair && (
+              <div className="p-3 bg-muted/50 rounded-lg space-y-1">
                 <p className="text-sm text-muted-foreground">
-                  Duration: {selectedPair.investment_duration} day
-                  {selectedPair.investment_duration !== 1 ? "s" : ""}
+                  Duration: {tradeDuration} day{tradeDuration !== 1 ? "s" : ""}
                 </p>
                 <p className="text-sm text-muted-foreground">
-                  Expected Return: $
+                  Expected Return/day: $
                   {(
                     investmentAmount * (selectedPair.min_return_percentage / 100)
                   ).toFixed(2)}{" "}
@@ -234,6 +279,7 @@ export function TradeForm({ availablePairs, loading, fetchData }: TradeFormProps
                 </p>
               </div>
             )}
+            
             <div className="flex gap-2 mt-2 items-center">
               <Button
                 type="button"
@@ -247,15 +293,16 @@ export function TradeForm({ availablePairs, loading, fetchData }: TradeFormProps
                 Back
               </Button>
               <Button
-                type="submit"
+                type="button"
+                onClick={handleFormSubmit}
                 className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90 text-sm h-8 px-3 py-1 gap-1 rounded-md transition-colors"
-                disabled={submitting || !investmentAmount}
+                disabled={submitting || !investmentAmount || !tradeDuration}
               >
                 <DollarSign className="h-3 w-3" />
                 {submitting ? "Starting..." : "Start Trade"}
               </Button>
             </div>
-          </form>
+          </div>
         )}
       </CardContent>
     </Card>

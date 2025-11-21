@@ -10,6 +10,7 @@ export interface TradingPair {
   min_return_percentage: number;
   max_return_percentage: number;
   investment_duration: number;
+  max_investment_duration: number;
 }
 
 export interface Trade {
