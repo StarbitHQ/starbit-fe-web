@@ -2,26 +2,22 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
-import { Icon, LatLngExpression } from "leaflet";
-import "leaflet/dist/leaflet.css";
-
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import dynamic from "next/dynamic";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Store, MapPin, Navigation } from "lucide-react";
 import { api } from "@/lib/api";
 
-// Fix Leaflet default icon
-const customIcon = new Icon({
-  iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
-  iconRetinaUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
-  shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-  popupAnchor: [1, -34],
-  shadowSize: [41, 41],
+// Dynamically import the map component with SSR disabled
+const MapComponent = dynamic(() => import("@/components/VendorsMap"), {
+  ssr: false,
+  loading: () => (
+    <div className="h-full min-h-96 rounded-lg overflow-hidden bg-muted flex items-center justify-center">
+      <p className="text-muted-foreground">Loading map...</p>
+    </div>
+  ),
 });
 
 type Vendor = {
@@ -51,7 +47,7 @@ export default function VendorsMapPage() {
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [filteredVendors, setFilteredVendors] = useState<Vendor[]>([]);
   const [selectedCategory, setSelectedCategory] = useState("All Categories");
-  const [mapCenter, setMapCenter] = useState<LatLngExpression>([20, 0]); // World view initially
+  const [mapCenter, setMapCenter] = useState<[number, number]>([20, 0]);
   const [isLoadingLocation, setIsLoadingLocation] = useState(false);
 
   // Load vendors
@@ -79,7 +75,7 @@ export default function VendorsMapPage() {
 
   // Focus map on user's location
   const goToMyLocation = () => {
-    if (!navigator.geolocation) return;
+    if (typeof window === "undefined" || !navigator.geolocation) return;
 
     setIsLoadingLocation(true);
     navigator.geolocation.getCurrentPosition(
@@ -182,31 +178,11 @@ export default function VendorsMapPage() {
           <div className="lg:col-span-3">
             <Card className="h-full min-h-96">
               <CardContent className="p-0 h-full">
-                <div className="h-full min-h-96 rounded-lg overflow-hidden">
-                  <MapContainer center={mapCenter} zoom={filteredVendors.length === 1 ? 15 : 3} style={{ height: "100%", width: "100%" }}>
-                    <TileLayer
-                      url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                      attribution='&copy; <a href="https://openstreetmap.org">OpenStreetMap</a> contributors'
-                    />
-                    {filteredVendors.map((vendor) => (
-                      <Marker key={vendor.id} position={[vendor.lat, vendor.lng]} icon={customIcon}>
-                        <Popup>
-                          <div className="text-center min-w-48">
-                            <Store className="h-10 w-10 mx-auto mb-3 text-primary" />
-                            <h3 className="font-bold text-lg">{vendor.business_name}</h3>
-                            <p className="text-sm text-muted-foreground">{vendor.address}</p>
-                            <Badge className="mt-3">{vendor.category}</Badge>
-                            <div className="mt-3">
-                              <Button size="sm" className="w-full">
-                                Get Directions
-                              </Button>
-                            </div>
-                          </div>
-                        </Popup>
-                      </Marker>
-                    ))}
-                  </MapContainer>
-                </div>
+                <MapComponent 
+                  vendors={filteredVendors} 
+                  center={mapCenter}
+                  zoom={filteredVendors.length === 1 ? 15 : 3}
+                />
               </CardContent>
             </Card>
           </div>
