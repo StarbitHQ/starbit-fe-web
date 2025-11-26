@@ -242,7 +242,7 @@ export function NavHeader({
             <div className="flex flex-col gap-2 pt-4 border-t border-border">
               {isAuthenticated ? (
                 <>
-                  <MobileThemeToggle /> {/* <-- Added Mobile Theme Toggle here */}
+                  
                   
                   {/* The rest of the authenticated links */}
                   <Link href="/profile">
@@ -278,6 +278,7 @@ export function NavHeader({
                     <LogOut className="h-4 w-4" />
                     Logout
                   </Button>
+                  
                 </>
               ) : (
                 // Unauthenticated links remain the same

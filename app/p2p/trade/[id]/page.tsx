@@ -1,200 +1,301 @@
-"use client"
+// app/p2p/trade/[id]/page.tsx
+"use client";
 
-import { useState } from "react"
-import { NavHeader } from "@/components/nav-header"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Badge } from "@/components/ui/badge"
-import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Textarea } from "@/components/ui/textarea"
-import { Shield, Star, Clock, AlertTriangle, Send, CheckCircle2 } from "lucide-react"
-import { useToast } from "@/hooks/use-toast"
+import { use } from "react";
+import { useEffect, useState, useRef } from "react";
+import { api } from "@/lib/api";
+import { getEcho } from "@/lib/echo";
+import { formatDistanceToNow } from "date-fns";
+import { NavHeader } from "@/components/nav-header";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Shield, Clock, Send, CheckCircle2, Loader2 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
-export default function TradePage() {
-  const { toast } = useToast()
-  const [amount, setAmount] = useState("")
-  const [message, setMessage] = useState("")
-  const [tradeStatus, setTradeStatus] = useState<"pending" | "paid" | "completed">("pending")
-  const [messages, setMessages] = useState([
-    { id: 1, sender: "seller", text: "Hello! Ready to trade?", time: "2 min ago" },
-    { id: 2, sender: "buyer", text: "Yes, let me send the payment now", time: "1 min ago" },
-  ])
+type Message = {
+  id: number;
+  message: string;
+  sender_id: number;
+  created_at: string;
+  user: { id: number; name: string };
+};
 
-  const offer = {
-    seller: "CryptoKing",
-    rating: 4.8,
-    trades: 234,
-    verified: true,
-    coin: "BTC",
-    price: "$45,250",
-    available: "0.5 BTC",
-    limit: "$500 - $5,000",
-    payment: ["Bank Transfer", "PayPal"],
+type Trade = {
+  id: number;
+  offer: {
+    id: number;
+    type: "buy" | "sell";
+    coin: string;
+    price: string;
+    user: { id: number; name: string; verified: boolean };
+    payment_methods: string[];
+  };
+  buyer: { id: number; name: string };
+  seller: { id: number; name: string };
+  amount_usd: string;
+  amount_crypto: string;
+  status: "pending" | "paid" | "completed" | "disputed" | "cancelled";
+  expires_at: string;
+};
+
+export default function TradePage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id: tradeId } = use(params);
+  const { toast } = useToast();
+
+  const [trade, setTrade] = useState<Trade | null>(null);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [currentUserId, setCurrentUserId] = useState<number | null>(null);
+  const [newMessage, setNewMessage] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isReleasing, setIsReleasing] = useState(false);
+
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+
+  // Load current user
+  useEffect(() => {
+    const loadUser = async () => {
+      try {
+        const user = await api.get<{ id: number }>("/api/user");
+        setCurrentUserId(user.id);
+      } catch (err) {
+        console.error("Failed to load user");
+      }
+    };
+    loadUser();
+  }, []);
+
+  // Load trade data
+  useEffect(() => {
+    if (!currentUserId) return;
+
+    const loadTrade = async () => {
+      try {
+        const res = await api.get<{ trade: Trade; messages: Message[] }>(
+          `/api/p2p/trades/${tradeId}`
+        );
+        setTrade(res.trade);
+        setMessages(res.messages || []);
+      } catch (err: any) {
+        toast({
+          title: "Error",
+          description: err.message || "Failed to load trade",
+          variant: "destructive",
+        });
+      }
+    };
+
+    loadTrade();
+    const interval = setInterval(loadTrade, 15000);
+    return () => clearInterval(interval);
+  }, [tradeId, currentUserId, toast]);
+
+  // Real-time with Reverb — FIXED
+  useEffect(() => {
+    if (!trade || !currentUserId) return;
+
+    const echo = getEcho();
+    if (!echo) return;
+
+    const channelName = `p2p.trade.${tradeId}`;
+
+    echo
+      .join(channelName)
+      .here((users: any[]) => {
+        console.log("Users online:", users.map(u => u.name));
+      })
+      .joining((user: any) => {
+        if (user.id !== currentUserId) {
+          toast({ description: `${user.name} joined the chat` });
+        }
+      })
+      .leaving((user: any) => {
+        toast({ description: `${user.name} left the chat` });
+      })
+      .listen(".P2pMessageSent", (e: { message: Message }) => {
+        setMessages((prev) => [...prev, e.message]);
+      });
+
+    // CORRECT CLEANUP — use echo.leave(), NOT channel.leave()
+    return () => {
+      echo.leave(channelName);
+    };
+  }, [trade, tradeId, currentUserId, toast]);
+
+  const sendMessage = async () => {
+    if (!newMessage.trim()) return;
+    setIsSubmitting(true);
+    try {
+      await api.post(`/api/p2p/trades/${tradeId}/messages`, {
+        message: newMessage.trim(),
+      });
+      setNewMessage("");
+    } catch (err: any) {
+      toast({
+        title: "Failed to send",
+        description: err.message || "Message not sent",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const markAsPaid = async () => {
+    setIsSubmitting(true);
+    try {
+      await api.post(`/api/p2p/trades/${tradeId}/pay`);
+      setTrade((t) => (t ? { ...t, status: "paid" } : t));
+      toast({ title: "Payment confirmed!", description: "Waiting for seller..." });
+    } catch (err: any) {
+      toast({ title: "Failed", description: err.message, variant: "destructive" });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const releaseCrypto = async () => {
+    setIsReleasing(true);
+    try {
+      await api.post(`/api/p2p/trades/${tradeId}/release`);
+      setTrade((t) => (t ? { ...t, status: "completed" } : t));
+      toast({ title: "Crypto released!", description: "Trade completed" });
+    } catch (err: any) {
+      toast({ title: "Failed", description: err.message, variant: "destructive" });
+    } finally {
+      setIsReleasing(false);
+    }
+  };
+
+  if (!trade || !currentUserId) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
   }
 
-  const handleSendMessage = () => {
-    if (!message.trim()) return
-    setMessages([...messages, { id: messages.length + 1, sender: "buyer", text: message, time: "Just now" }])
-    setMessage("")
-  }
-
-  const handleMarkPaid = () => {
-    setTradeStatus("paid")
-    toast({
-      title: "Payment marked!",
-      description: "Waiting for seller to confirm receipt",
-      className: "bg-secondary text-secondary-foreground",
-    })
-  }
+  const isBuyer = trade.buyer.id === currentUserId;
+  const isSeller = trade.seller.id === currentUserId;
+  const counterpart = isBuyer ? trade.seller : trade.buyer;
 
   return (
     <div className="min-h-screen bg-background">
       <NavHeader isAuthenticated />
 
-      <main className="container mx-auto px-4 py-8 max-w-6xl">
-        <div className="mb-6">
-          <h1 className="text-3xl font-bold text-foreground mb-2">Trade Details</h1>
-          <p className="text-muted-foreground">Complete your P2P trade securely</p>
-        </div>
-
-        <div className="grid gap-6 lg:grid-cols-3">
-          {/* Trade Form */}
+      <main className="container mx-auto px-4 py-8 max-w-7xl">
+        <div className="grid lg:grid-cols-3 gap-8">
+          {/* Main */}
           <div className="lg:col-span-2 space-y-6">
-            {/* Seller Info */}
-            <Card className="bg-card border-border">
+
+            <Card>
               <CardHeader>
-                <CardTitle className="text-foreground">Seller Information</CardTitle>
+                <CardTitle className="flex items-center gap-3">
+                  {isBuyer ? "Buying from" : "Selling to"} {counterpart.name}
+                  {counterpart.verified && <Shield className="h-5 w-5 text-primary" />}
+                </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="flex items-center gap-4">
-                  <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center">
-                    <span className="text-2xl font-bold text-primary">{offer.seller[0]}</span>
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <h3 className="text-xl font-semibold text-foreground">{offer.seller}</h3>
-                      {offer.verified && <Shield className="h-5 w-5 text-primary" />}
-                    </div>
-                    <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                      <span className="flex items-center gap-1">
-                        <Star className="h-4 w-4 fill-secondary text-secondary" />
-                        {offer.rating} rating
-                      </span>
-                      <span>{offer.trades} completed trades</span>
-                    </div>
-                  </div>
+                <div className="flex flex-wrap gap-2">
+                  {trade.offer.payment_methods.map((m) => (
+                    <Badge key={m} variant="secondary">{m}</Badge>
+                  ))}
                 </div>
               </CardContent>
             </Card>
 
-            {/* Trade Amount */}
-            <Card className="bg-card border-border">
-              <CardHeader>
-                <CardTitle className="text-foreground">Enter Amount</CardTitle>
-                <CardDescription className="text-muted-foreground">
-                  Price: {offer.price} | Limit: {offer.limit}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="amount" className="text-foreground">
-                    Amount (USD)
-                  </Label>
-                  <Input
-                    id="amount"
-                    type="number"
-                    placeholder="Enter amount"
-                    value={amount}
-                    onChange={(e) => setAmount(e.target.value)}
-                    className="bg-background border-input text-foreground"
-                  />
-                  {amount && (
-                    <p className="text-sm text-muted-foreground">
-                      You will receive: {(Number.parseFloat(amount) / 45250).toFixed(6)} BTC
-                    </p>
-                  )}
-                </div>
-
-                <div className="space-y-2">
-                  <Label className="text-foreground">Payment Methods</Label>
-                  <div className="flex flex-wrap gap-2">
-                    {offer.payment.map((method) => (
-                      <Badge key={method} className="bg-primary/10 text-primary hover:bg-primary/20">
-                        {method}
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
-
-                {tradeStatus === "pending" && (
-                  <Button
-                    onClick={handleMarkPaid}
-                    className="w-full bg-secondary text-secondary-foreground hover:bg-secondary/90"
-                    disabled={!amount}
-                  >
+            {trade.status === "pending" && isBuyer && (
+              <Card className="border-blue-500">
+                <CardContent className="pt-6 text-center">
+                  <p className="mb-4">Send payment, then confirm</p>
+                  <Button size="lg" onClick={markAsPaid} disabled={isSubmitting}>
+                    {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                     I Have Paid
                   </Button>
-                )}
+                </CardContent>
+              </Card>
+            )}
 
-                {tradeStatus === "paid" && (
-                  <Alert className="bg-secondary/10 border-secondary/20">
-                    <Clock className="h-4 w-4 text-secondary" />
-                    <AlertDescription className="text-foreground">
-                      Waiting for seller to confirm payment receipt...
-                    </AlertDescription>
-                  </Alert>
-                )}
+            {trade.status === "paid" && isSeller && (
+              <Card className="border-green-500 bg-green-50 dark:bg-green-950/20">
+                <CardContent className="pt-6 text-center space-y-4">
+                  <p className="text-lg font-medium">Buyer marked as paid</p>
+                  <Button size="lg" onClick={releaseCrypto} disabled={isReleasing}>
+                    {isReleasing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
+                    Release {trade.amount_crypto} {trade.offer.coin}
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
 
-                {tradeStatus === "completed" && (
-                  <Alert className="bg-primary/10 border-primary/20">
-                    <CheckCircle2 className="h-4 w-4 text-primary" />
-                    <AlertDescription className="text-foreground">Trade completed successfully!</AlertDescription>
-                  </Alert>
-                )}
-              </CardContent>
-            </Card>
+            {trade.status === "paid" && isBuyer && (
+              <Alert className="border-yellow-500">
+                <Clock className="h-4 w-4" />
+                <AlertDescription>
+                  Waiting for seller to release {trade.amount_crypto} {trade.offer.coin}
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {trade.status === "completed" && (
+              <Alert className="border-green-500">
+                <CheckCircle2 className="h-4 w-4" />
+                <AlertDescription>Trade completed successfully!</AlertDescription>
+              </Alert>
+            )}
 
             {/* Chat */}
-            <Card className="bg-card border-border">
-              <CardHeader>
-                <CardTitle className="text-foreground">Chat with Seller</CardTitle>
-              </CardHeader>
+            <Card>
+              <CardHeader><CardTitle>Chat</CardTitle></CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  <div className="h-64 overflow-y-auto space-y-3 p-4 bg-muted/30 rounded-lg">
-                    {messages.map((msg) => (
-                      <div key={msg.id} className={`flex ${msg.sender === "buyer" ? "justify-end" : "justify-start"}`}>
-                        <div
-                          className={`max-w-[70%] rounded-lg p-3 ${
-                            msg.sender === "buyer"
-                              ? "bg-primary text-primary-foreground"
-                              : "bg-card border border-border text-foreground"
-                          }`}
-                        >
-                          <p className="text-sm">{msg.text}</p>
-                          <p className="text-xs opacity-70 mt-1">{msg.time}</p>
+                <div className="h-96 overflow-y-auto mb-4 space-y-4 p-4 bg-muted/50 rounded-lg">
+                  {messages.map((msg) => {
+                    const isMine = msg.user.id === currentUserId;
+                    return (
+                      <div key={msg.id} className={`flex ${isMine ? "justify-end" : "justify-start"}`}>
+                        <div className={`max-w-xs px-4 py-2 rounded-lg ${isMine ? "bg-primary text-primary-foreground" : "bg-card border"}`}>
+                          {!isMine && <p className="text-xs font-medium opacity-80 mb-1">{msg.user.name}</p>}
+                          <p className="text-sm">{msg.message}</p>
+                          <p className="text-xs opacity-70 mt-1">
+                            {formatDistanceToNow(new Date(msg.created_at), { addSuffix: true })}
+                          </p>
                         </div>
                       </div>
-                    ))}
-                  </div>
-                  <div className="flex gap-2">
-                    <Textarea
-                      placeholder="Type your message..."
-                      value={message}
-                      onChange={(e) => setMessage(e.target.value)}
-                      className="bg-background border-input text-foreground resize-none"
-                      rows={2}
-                    />
-                    <Button
-                      onClick={handleSendMessage}
-                      className="bg-primary text-primary-foreground hover:bg-primary/90"
-                      disabled={!message.trim()}
-                    >
-                      <Send className="h-4 w-4" />
-                    </Button>
-                  </div>
+                    );
+                  })}
+                  <div ref={messagesEndRef} />
+                </div>
+
+                <div className="flex gap-2">
+                  <Textarea
+                    placeholder="Type a message..."
+                    value={newMessage}
+                    onChange={(e) => setNewMessage(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        sendMessage();
+                      }
+                    }}
+                    disabled={isSubmitting}
+                  />
+                  <Button onClick={sendMessage} disabled={!newMessage.trim() || isSubmitting}>
+                    <Send className="h-4 w-4" />
+                  </Button>
                 </div>
               </CardContent>
             </Card>
@@ -202,59 +303,44 @@ export default function TradePage() {
 
           {/* Sidebar */}
           <div className="space-y-6">
-            {/* Escrow Status */}
-            <Card className="bg-gradient-to-br from-primary/10 via-card to-secondary/10 border-primary/20">
-              <CardHeader>
-                <CardTitle className="text-foreground text-lg">Escrow Protection</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <Shield className="h-5 w-5 text-primary" />
-                  <span className="text-sm text-foreground font-medium">Funds are secured in escrow</span>
+            <Card>
+              <CardHeader><CardTitle>Trade Summary</CardTitle></CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Amount</span>
+                  <span className="font-semibold">${trade.amount_usd}</span>
                 </div>
-                <p className="text-xs text-muted-foreground leading-relaxed">
-                  Your crypto is held safely until both parties confirm the trade. This protects both buyer and seller.
-                </p>
-              </CardContent>
-            </Card>
-
-            {/* Timer */}
-            <Card className="bg-card border-border">
-              <CardHeader>
-                <CardTitle className="text-foreground text-lg flex items-center gap-2">
-                  <Clock className="h-5 w-5 text-secondary" />
-                  Time Remaining
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-center">
-                  <p className="text-3xl font-bold text-foreground mb-1">14:32</p>
-                  <p className="text-sm text-muted-foreground">Complete payment before timer expires</p>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">You {isBuyer ? "receive" : "send"}</span>
+                  <span className="font-semibold">{trade.amount_crypto} {trade.offer.coin}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Price</span>
+                  <span>${Number(trade.offer.price).toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Status</span>
+                  <Badge variant={trade.status === "completed" ? "default" : "secondary"}>
+                    {trade.status}
+                  </Badge>
                 </div>
               </CardContent>
             </Card>
 
-            {/* Dispute */}
-            <Card className="bg-card border-border">
-              <CardHeader>
-                <CardTitle className="text-foreground text-lg">Need Help?</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <p className="text-sm text-muted-foreground">
-                  If you encounter any issues with this trade, you can open a dispute.
-                </p>
-                <Button
-                  variant="outline"
-                  className="w-full gap-2 bg-transparent border-destructive text-destructive hover:bg-destructive/10"
-                >
-                  <AlertTriangle className="h-4 w-4" />
-                  Open Dispute
-                </Button>
+            <Card className="bg-primary/5 border-primary/20">
+              <CardContent className="pt-6">
+                <div className="flex items-center gap-3 text-primary">
+                  <Shield className="h-6 w-6" />
+                  <div>
+                    <p className="font-semibold">Escrow Protected</p>
+                    <p className="text-sm">Crypto held safely until confirmed</p>
+                  </div>
+                </div>
               </CardContent>
             </Card>
           </div>
         </div>
       </main>
     </div>
-  )
+  );
 }

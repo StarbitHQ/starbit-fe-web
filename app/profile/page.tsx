@@ -2,7 +2,13 @@
 "use client";
 
 import { NavHeader } from "@/components/nav-header";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -90,7 +96,9 @@ export default function ProfilePage() {
           <CardContent className="p-8 text-center">
             <AlertCircle className="h-12 w-12 text-destructive mx-auto mb-4" />
             <p className="text-lg font-semibold mb-2">Not Logged In</p>
-            <p className="text-muted-foreground mb-6">Please log in to view your profile.</p>
+            <p className="text-muted-foreground mb-6">
+              Please log in to view your profile.
+            </p>
             <Link href="/login">
               <Button>Go to Login</Button>
             </Link>
@@ -120,7 +128,9 @@ export default function ProfilePage() {
               </AvatarFallback>
             </Avatar>
 
-            <h2 className="text-2xl font-bold text-foreground">{user.name || "User"}</h2>
+            <h2 className="text-2xl font-bold text-foreground">
+              {user.name || "User"}
+            </h2>
             <p className="text-muted-foreground flex items-center justify-center gap-2 mt-1">
               <Mail className="h-4 w-4" />
               {user.email}
@@ -151,7 +161,9 @@ export default function ProfilePage() {
                       <Shield className="h-6 w-6 text-blue-500" />
                     </div>
                     <div>
-                      <CardTitle className="text-lg">KYC Verification</CardTitle>
+                      <CardTitle className="text-lg">
+                        KYC Verification
+                      </CardTitle>
                       <CardDescription>
                         {user.kyc_status === "verified"
                           ? "Verified – Full access granted"
@@ -175,8 +187,12 @@ export default function ProfilePage() {
                       <Settings className="h-6 w-6 text-purple-500" />
                     </div>
                     <div>
-                      <CardTitle className="text-lg">Account Settings</CardTitle>
-                      <CardDescription>Security, password, 2FA & preferences</CardDescription>
+                      <CardTitle className="text-lg">
+                        Account Settings
+                      </CardTitle>
+                      <CardDescription>
+                        Security, password, 2FA & preferences
+                      </CardDescription>
                     </div>
                   </div>
                   <ArrowRight className="h-5 w-5 text-muted-foreground" />
@@ -196,7 +212,9 @@ export default function ProfilePage() {
                     </div>
                     <div>
                       <CardTitle className="text-lg">Support Center</CardTitle>
-                      <CardDescription>Get help & submit tickets</CardDescription>
+                      <CardDescription>
+                        Get help & submit tickets
+                      </CardDescription>
                     </div>
                   </div>
                   <ArrowRight className="h-5 w-5 text-muted-foreground" />
@@ -206,6 +224,27 @@ export default function ProfilePage() {
           </Link>
 
           {/* Upgrade Account */}
+          <Link href="/vendors">
+            <Card className="hover:bg-muted/50 transition-all cursor-pointer border-border">
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="p-3 rounded-full bg-yellow-500/10">
+                      <Crown className="h-6 w-6 text-yellow-500" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-lg">Become a vendor</CardTitle>
+                      <CardDescription>
+                        Unlock VIP features & benefits
+                      </CardDescription>
+                    </div>
+                  </div>
+                  <ArrowRight className="h-5 w-5 text-muted-foreground" />
+                </div>
+              </CardHeader>
+            </Card>
+          </Link>
+
           {/* <Link href="/upgrade">
             <Card className="hover:bg-muted/50 transition-all cursor-pointer border-border">
               <CardHeader className="pb-3">
@@ -216,7 +255,9 @@ export default function ProfilePage() {
                     </div>
                     <div>
                       <CardTitle className="text-lg">Upgrade Account</CardTitle>
-                      <CardDescription>Unlock VIP features & benefits</CardDescription>
+                      <CardDescription>
+                        Unlock VIP features & benefits
+                      </CardDescription>
                     </div>
                   </div>
                   <ArrowRight className="h-5 w-5 text-muted-foreground" />

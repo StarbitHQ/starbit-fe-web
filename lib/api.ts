@@ -1,112 +1,81 @@
-// lib/api.ts
+// lib/api.ts — FINAL VERSION (the one that actually works)
 export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
 
-/**
- * Helper to get auth token from cookies
- */
 const getCookie = (name: string): string | null => {
-  if (typeof document === 'undefined') return null;
+  if (typeof document === "undefined") return null;
   const value = `; ${document.cookie}`;
   const parts = value.split(`; ${name}=`);
-  if (parts.length === 2) return parts.pop()?.split(';').shift() || null;
+  if (parts.length === 2) return parts.pop()?.split(";").shift() || null;
   return null;
 };
 
+const defaultHeaders = () => {
+  const token = getCookie("auth_token");
+  return {
+    "Content-Type": "application/json",
+    Accept: "application/json",
+    "X-Requested-With": "XMLHttpRequest", // ← Laravel Sanctum needs this
+    ...(token && { Authorization: `Bearer ${token}` }),
+  };
+};
+
 export const api = {
-  async get<T>(path: string): Promise<T> {
-    const token = getCookie('auth_token');
-    if (!token) {
-      throw new Error("No authentication token found");
-    }
-
+  async request<T>(
+    path: string,
+    options: RequestInit = {}
+  ): Promise<T> {
     const url = `${API_BASE_URL}${path.startsWith("/") ? path : `/${path}`}`;
 
     const res = await fetch(url, {
+      ...options,
+      credentials: "include", // ← THIS SENDS COOKIES (session + XSRF + your auth_token)
       headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: "application/json",
+        ...defaultHeaders(),
+        ...(options.headers || {}),
       },
     });
 
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.message ?? "Request failed");
+    // Handle 401 → redirect to login
+    if (res.status === 401) {
+      window.location.href = "/login";
+      throw new Error("Unauthorized");
     }
 
-    return res.json() as Promise<T>;
+    if (!res.ok) {
+      let errorMessage = "Request failed";
+      try {
+        const errorData = await res.json();
+        errorMessage = errorData.message || errorMessage;
+      } catch {}
+      throw new Error(errorMessage);
+    }
+
+    // Handle empty response (204 No Content)
+    if (res.status === 204) return {} as T;
+
+    return res.json();
   },
 
-  async post<T>(path: string, body: any): Promise<T> {
-    const token = getCookie('auth_token');
-    if (!token) {
-      throw new Error("No authentication token found");
-    }
+  get<T>(path: string) {
+    return this.request<T>(path, { method: "GET" });
+  },
 
-    const url = `${API_BASE_URL}${path.startsWith("/") ? path : `/${path}`}`;
-
-    const res = await fetch(url, {
+  post<T>(path: string, body?: any) {
+    return this.request<T>(path, {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(body),
+      body: body ? JSON.stringify(body) : undefined,
     });
-
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.message ?? "Request failed");
-    }
-
-    return res.json() as Promise<T>;
   },
 
-  async patch<T>(path: string, body: any): Promise<T> {
-    const token = getCookie('auth_token');
-    if (!token) {
-      throw new Error("No authentication token found");
-    }
-
-    const url = `${API_BASE_URL}${path.startsWith("/") ? path : `/${path}`}`;
-
-    const res = await fetch(url, {
+  patch<T>(path: string, body?: any) {
+    return this.request<T>(path, {
       method: "PATCH",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(body),
+      body: body ? JSON.stringify(body) : undefined,
     });
-
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.message ?? "Request failed");
-    }
-
-    return res.json() as Promise<T>;
   },
 
-  async delete<T>(path: string): Promise<T> {
-    const token = getCookie('auth_token');
-    if (!token) {
-      throw new Error("No authentication token found");
-    }
-
-    const url = `${API_BASE_URL}${path.startsWith("/") ? path : `/${path}`}`;
-
-    const res = await fetch(url, {
-      method: "DELETE",
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
-
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.message ?? "Request failed");
-    }
-
-    return res.json() as Promise<T>;
+  delete<T>(path: string) {
+    return this.request<T>(path, { method: "DELETE" });
   },
 };
