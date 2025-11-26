@@ -5,9 +5,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { MapContainer, TileLayer, Marker, Popup, useMapEvents } from "react-leaflet";
-import { LatLngExpression, Icon } from "leaflet";
-import "leaflet/dist/leaflet.css";
+import dynamic from "next/dynamic";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -19,12 +17,14 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2, CheckCircle2, Locate } from "lucide-react";
 import { api } from "@/lib/api";
 
-// Fix Leaflet icons
-delete (Icon.Default.prototype as any)._getIconUrl;
-Icon.Default.mergeOptions({
-  iconRetinaUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
-  iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
-  shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
+// Dynamically import the map component
+const VendorLocationMap = dynamic(() => import("@/components/VendorLocationMap"), {
+  ssr: false,
+  loading: () => (
+    <div className="h-96 rounded-lg overflow-hidden border bg-muted flex items-center justify-center">
+      <p className="text-muted-foreground">Loading map...</p>
+    </div>
+  ),
 });
 
 const vendorSchema = z.object({
@@ -54,25 +54,10 @@ const categories = [
   "Other",
 ];
 
-function LocationMarker({ position }: { position: LatLngExpression | null }) {
-  useMapEvents({
-    click(e) {
-      const { lat, lng } = e.latlng;
-      window.__SET_VENDOR_POS?.([lat, lng]);
-    },
-  });
-
-  return position ? (
-    <Marker position={position}>
-      <Popup>Your store location</Popup>
-    </Marker>
-  ) : null;
-}
-
 export default function VendorRegistrationPage() {
   const { toast } = useToast();
   const [step, setStep] = useState(1);
-  const [position, setPosition] = useState<LatLngExpression | null>(null);
+  const [position, setPosition] = useState<[number, number] | null>(null);
   const [isLocating, setIsLocating] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -87,13 +72,8 @@ export default function VendorRegistrationPage() {
     defaultValues: { lat: 0, lng: 0 },
   });
 
-  // Expose setter globally for map click
-  useState(() => {
-    (window as any).__SET_VENDOR_POS = setPosition;
-  });
-
   const getCurrentLocation = () => {
-    if (!navigator.geolocation) {
+    if (typeof window === "undefined" || !navigator.geolocation) {
       toast({ title: "Not supported", description: "Geolocation is not supported", variant: "destructive" });
       return;
     }
@@ -115,6 +95,12 @@ export default function VendorRegistrationPage() {
       },
       { enableHighAccuracy: true, timeout: 10000 }
     );
+  };
+
+  const handleMapClick = (lat: number, lng: number) => {
+    setPosition([lat, lng]);
+    setValue("lat", lat);
+    setValue("lng", lng);
   };
 
   const goToNextStep = async () => {
@@ -247,12 +233,11 @@ export default function VendorRegistrationPage() {
                     )}
                   </Button>
 
-                  <div className="h-96 rounded-lg overflow-hidden border">
-                    <MapContainer center={position || [25.7617, -80.1918]} zoom={position ? 16 : 2} style={{ height: "100%" }}>
-                      <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-                      <LocationMarker position={position} />
-                    </MapContainer>
-                  </div>
+                  <VendorLocationMap 
+                    position={position}
+                    onMapClick={handleMapClick}
+                  />
+                  
                   {position && (
                     <p className="text-sm text-muted-foreground text-center mt-2">
                       Coordinates: {position[0].toFixed(6)}, {position[1].toFixed(6)}
