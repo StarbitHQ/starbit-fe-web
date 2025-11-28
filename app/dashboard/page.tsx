@@ -27,6 +27,7 @@ import {
   Wallet,
   AlertCircle,
   Loader2,
+  Send, // Added for Transfer icon
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -208,7 +209,7 @@ export default function DashboardPage() {
 
         <div className="grid gap-6 lg:grid-cols-3">
           {/* -------------------------------------------------------------- */}
-          {/* Daily Trading Coins – SAFE VERSION */}
+          {/* Daily Trading Coins */}
           {/* -------------------------------------------------------------- */}
           <Card className="lg:col-span-2 bg-card border-border">
             <CardHeader>
@@ -222,11 +223,9 @@ export default function DashboardPage() {
             </CardHeader>
 
             <CardContent>
-              {/* ---- SAFE RENDERING ---- */}
               {Array.isArray(dailyCoins) && dailyCoins.length > 0 ? (
                 <div className="space-y-4">
                   {dailyCoins.map((coin) => {
-                    // Defensive defaults
                     const safeCoin = {
                       symbol: coin?.symbol ?? "???",
                       name: coin?.name ?? "Unknown",
@@ -245,7 +244,6 @@ export default function DashboardPage() {
                         className="flex items-center justify-between p-4 rounded-lg bg-muted/50 hover:bg-muted/70 transition-colors"
                       >
                         <div className="flex items-center gap-3">
-                          {/* Coin image with fallback */}
                           <div className="relative h-10 w-10 rounded-full overflow-hidden bg-background flex-shrink-0">
                             {safeCoin.image ? (
                               <Image
@@ -264,7 +262,6 @@ export default function DashboardPage() {
                                 }}
                               />
                             ) : null}
-                            {/* Letter fallback */}
                             <div
                               className={`h-full w-full bg-primary/10 flex items-center justify-center ${
                                 safeCoin.image ? "hidden" : ""
@@ -305,7 +302,6 @@ export default function DashboardPage() {
                   })}
                 </div>
               ) : (
-                /* ---- FALLBACK UI ---- */
                 <div className="text-center py-8">
                   <Bitcoin className="h-12 w-12 text-muted-foreground mx-auto mb-3 opacity-50" />
                   <p className="text-muted-foreground mb-4">
@@ -319,7 +315,6 @@ export default function DashboardPage() {
                 </div>
               )}
 
-              {/* CTA – always visible */}
               <Link href="/trade">
                 <Button className="w-full mt-4 bg-primary text-primary-foreground hover:bg-primary/90 gap-2">
                   Start Trading
@@ -330,7 +325,7 @@ export default function DashboardPage() {
           </Card>
 
           {/* -------------------------------------------------------------- */}
-          {/* Quick Actions */}
+          {/* Quick Actions - UPDATED WITH TRANSFER */}
           {/* -------------------------------------------------------------- */}
           <Card className="bg-card border-border">
             <CardHeader>
@@ -342,22 +337,35 @@ export default function DashboardPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
+              {/* Transfer - NEW SECTION */}
+              <Link href="/transfer">
+                <Button
+                  variant="outline"
+                  className="w-full justify-start gap-2 bg-gradient-to-r from-blue-500/10 to-primary/10 border-primary/20 hover:from-blue-500/20 hover:to-primary/20 text-primary hover:text-primary-foreground transition-all duration-200"
+                >
+                  <Send className="h-4 w-4" />
+                  <span className="flex-1 text-left">Transfer</span>
+                  <ArrowRight className="h-4 w-4 opacity-0 group-hover:opacity-100 transition-opacity ml-auto" />
+                </Button>
+              </Link>
+
               <Link href="/deposit">
                 <Button
                   variant="outline"
                   className="w-full justify-start gap-2 bg-transparent"
                 >
                   <DollarSign className="h-4 w-4 text-primary" />
-                  Deposit
+                  <span className="flex-1 text-left">Deposit</span>
                 </Button>
               </Link>
+              
               <Link href="/withdraw">
                 <Button
                   variant="outline"
                   className="w-full justify-start gap-2 bg-transparent"
                 >
                   <DollarSign className="h-4 w-4 text-secondary" />
-                  Withdraw
+                  <span className="flex-1 text-left">Withdraw</span>
                 </Button>
               </Link>
               
@@ -367,25 +375,27 @@ export default function DashboardPage() {
                   className="w-full justify-start gap-2 bg-transparent"
                 >
                   <Users className="h-4 w-4 text-secondary" />
-                  Referral Program
+                  <span className="flex-1 text-left">Referral Program</span>
                 </Button>
               </Link>
+              
               <Link href="/kyc">
                 <Button
                   variant="outline"
                   className="w-full justify-start gap-2 bg-transparent"
                 >
                   <Shield className="h-4 w-4 text-primary" />
-                  KYC Verification
+                  <span className="flex-1 text-left">KYC Verification</span>
                 </Button>
               </Link>
+              
               <Link href="/support">
                 <Button
                   variant="outline"
                   className="w-full justify-start gap-2 bg-transparent"
                 >
                   <MessageSquare className="h-4 w-4 text-secondary" />
-                  Support Tickets
+                  <span className="flex-1 text-left">Support Tickets</span>
                 </Button>
               </Link>
             </CardContent>

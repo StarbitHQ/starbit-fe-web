@@ -36,6 +36,7 @@ export default function RegisterPage() {
     email: "",
     password: "",
     confirmPassword: "",
+    phone: "",
     referralCode: searchParams.get("ref") || "",
     agreeToTerms: false,
   });
@@ -95,6 +96,7 @@ export default function RegisterPage() {
         body: JSON.stringify({
           name: formData.name,
           email: formData.email,
+          phone: formData.phone,
           password: formData.password,
           referral_code: formData.referralCode || undefined,
         }),
@@ -340,6 +342,24 @@ export default function RegisterPage() {
                     value={formData.email}
                     onChange={(e) =>
                       setFormData({ ...formData, email: e.target.value })
+                    }
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="email">Phone</Label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id="phone"
+                    type="tel"
+                    placeholder="+2348123456789"
+                    className="pl-10"
+                    required
+                    value={formData.phone}
+                    onChange={(e) =>
+                      setFormData({ ...formData, phone: e.target.value })
                     }
                   />
                 </div>
