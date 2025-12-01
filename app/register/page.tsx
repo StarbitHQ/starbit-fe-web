@@ -34,6 +34,7 @@ export default function RegisterPage() {
   const [formData, setFormData] = useState({
     name: "",
     email: "",
+    username:  "",
     password: "",
     confirmPassword: "",
     phone: "",
@@ -96,6 +97,7 @@ export default function RegisterPage() {
         body: JSON.stringify({
           name: formData.name,
           email: formData.email,
+          username: formData.username,
           phone: formData.phone,
           password: formData.password,
           referral_code: formData.referralCode || undefined,
@@ -342,6 +344,24 @@ export default function RegisterPage() {
                     value={formData.email}
                     onChange={(e) =>
                       setFormData({ ...formData, email: e.target.value })
+                    }
+                  />
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="username">Username</Label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id="username"
+                    type="text"
+                    placeholder="johndoe"
+                    className="pl-10"
+                    required
+                    value={formData.username}
+                    onChange={(e) =>
+                      setFormData({ ...formData, username: e.target.value })
                     }
                   />
                 </div>

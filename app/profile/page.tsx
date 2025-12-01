@@ -224,7 +224,7 @@ export default function ProfilePage() {
           </Link>
 
           {/* Upgrade Account */}
-          <Link href="/vendors">
+          {/* <Link href="/vendors/register">
             <Card className="hover:bg-muted/50 transition-all cursor-pointer border-border">
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
@@ -243,7 +243,7 @@ export default function ProfilePage() {
                 </div>
               </CardHeader>
             </Card>
-          </Link>
+          </Link> */}
 
           {/* <Link href="/upgrade">
             <Card className="hover:bg-muted/50 transition-all cursor-pointer border-border">
