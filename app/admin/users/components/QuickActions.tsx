@@ -228,7 +228,7 @@ const handleaccount_bal = async (data: z.infer<typeof account_balSchema>) => {
     setLoading(true);
     setResult(null);
     try {
-      await api.post(`/api/admin/promote/${userId}`, {
+      await api.post(`/api/admin/${userId}/promote`, {
         role: data.role,
       });
       setResult("success");
