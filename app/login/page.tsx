@@ -33,10 +33,11 @@ export default function LoginPage() {
   const router = useRouter();
   const { toast } = useToast();
 
-  
+  // Toggle this to instantly enable/disable OTP requirement
+  const BYPASS_OTP = true;
+
   type Step = "login" | "otp";
   const [step, setStep] = useState<Step>("login");
-
 
   const [loginLoading, setLoginLoading] = useState(false);
   const [formData, setFormData] = useState({
@@ -45,18 +46,15 @@ export default function LoginPage() {
     rememberMe: false,
   });
 
-  
   const [otp, setOtp] = useState("");
   const [otpLoading, setOtpLoading] = useState(false);
   const [countdown, setCountdown] = useState(0);
   const [emailForOtp, setEmailForOtp] = useState("");
   const [tempToken, setTempToken] = useState("");
 
-
   const [resetEmail, setResetEmail] = useState("");
   const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
   const [resetLoading, setResetLoading] = useState(false);
-
 
   useEffect(() => {
     if (countdown <= 0) return;
@@ -64,9 +62,7 @@ export default function LoginPage() {
     return () => clearInterval(timer);
   }, [countdown]);
 
-
- 
-  // const handleLogin = async (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.email || !formData.password) {
       toast({
@@ -94,11 +90,27 @@ export default function LoginPage() {
         throw new Error(data.message || "Login failed");
       }
 
-      // API now returns { temp_token, message }
+      // BYPASS MODE: Direct login if access_token is returned
+      if (BYPASS_OTP && data.access_token) {
+        const days = formData.rememberMe ? 30 : 7;
+        Cookies.set("auth_token", data.access_token, { expires: days });
+        Cookies.set("user_data", JSON.stringify(data.user), { expires: days });
+        Cookies.set("user_role", JSON.stringify(data.userRole));
+
+        toast({
+          title: "Welcome back!",
+          description: "You've successfully logged in",
+        });
+
+        router.push(data.user.type === "admin" ? "/admin/dashboard" : "/dashboard");
+        return;
+      }
+
+      // NORMAL FLOW: Go to OTP screen
       setTempToken(data.temp_token);
       setEmailForOtp(formData.email);
       setStep("otp");
-      setCountdown(600); // 10 minutes
+      setCountdown(600);
 
       toast({
         title: "Check your email!",
@@ -113,78 +125,8 @@ export default function LoginPage() {
     } finally {
       setLoginLoading(false);
     }
-  // };
+  };
 
-  const handleLogin = async (e: React.FormEvent) => {
-  e.preventDefault();
-  if (!formData.email || !formData.password) {
-    toast({
-      title: "Missing fields",
-      description: "Please enter your email and password",
-      variant: "destructive",
-    });
-    return;
-  }
-
-  setLoginLoading(true);
-  try {
-    const res = await fetch(`${API_BASE_URL}/api/auth/login`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        email: formData.email,
-        password: formData.password,
-      }),
-    });
-
-    const data = await res.json();
-
-    if (!res.ok) {
-      throw new Error(data.message || "Login failed");
-    }
-
-    // TEMPORARY BYPASS: If backend already returns access_token on login, use it directly
-    if (data.access_token) {
-      const days = formData.rememberMe ? 30 : 7;
-      Cookies.set("auth_token", data.access_token, { expires: days });
-      Cookies.set("user_data", JSON.stringify(data.user), { expires: days });
-      Cookies.set("user_role", JSON.stringify(data.userRole));
-
-      toast({
-        title: "Welcome back!",
-        description: "You've successfully logged in",
-      });
-
-      if (data.user.type === "admin") {
-        router.push("/admin/dashboard");
-      } else {
-        router.push("/dashboard");
-      }
-      return; // Skip OTP step entirely
-    }
-
-    // FALLBACK: Old behavior (OTP flow) — keep this so switching back is 1-line
-    setTempToken(data.temp_token);
-    setEmailForOtp(formData.email);
-    setStep("otp");
-    setCountdown(600);
-
-    toast({
-      title: "Check your email!",
-      description: `We sent a 6-digit code to ${formData.email}`,
-    });
-  } catch (err: any) {
-    toast({
-      title: "Login failed",
-      description: err.message || "Invalid email or password",
-      variant: "destructive",
-    });
-  } finally {
-    setLoginLoading(false);
-  }
-};
-
-  
   const handleVerifyOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     if (otp.length !== 6) {
@@ -210,9 +152,7 @@ export default function LoginPage() {
 
       const data = await res.json();
 
-      if (!res.ok) {
-        throw new Error(data.message || "Verification failed");
-      }
+      if (!res.ok) throw new Error(data.message || "Verification failed");
 
       const days = formData.rememberMe ? 30 : 7;
       Cookies.set("auth_token", data.access_token, { expires: days });
@@ -224,11 +164,7 @@ export default function LoginPage() {
         description: "You've successfully logged in",
       });
 
-      if (data.user.type === "admin") {
-        router.push("/admin/dashboard");
-      } else {
-        router.push("/dashboard");
-      }
+      router.push(data.user.type === "admin" ? "/admin/dashboard" : "/dashboard");
     } catch (err: any) {
       toast({
         title: "Error",
@@ -239,7 +175,6 @@ export default function LoginPage() {
       setOtpLoading(false);
     }
   };
-
 
   const resendOtp = async () => {
     setOtpLoading(true);
@@ -264,9 +199,6 @@ export default function LoginPage() {
     }
   };
 
-  // ──────────────────────────────────────────────────────
-  // Password-reset (unchanged)
-  // ──────────────────────────────────────────────────────
   const handlePasswordReset = async () => {
     if (!resetEmail) {
       toast({
@@ -302,9 +234,7 @@ export default function LoginPage() {
     }
   };
 
-  // ──────────────────────────────────────────────────────
-  // OTP SCREEN (same UI as register)
-  // ──────────────────────────────────────────────────────
+  // OTP Screen
   if (step === "otp") {
     return (
       <div className="min-h-screen bg-background flex flex-col">
@@ -324,8 +254,7 @@ export default function LoginPage() {
               </div>
               <CardTitle className="text-2xl">Verify your email</CardTitle>
               <CardDescription>
-                We sent a 6-digit code to{" "}
-                <span className="font-medium">{emailForOtp}</span>
+                We sent a 6-digit code to <span className="font-medium">{emailForOtp}</span>
               </CardDescription>
             </CardHeader>
 
@@ -340,18 +269,12 @@ export default function LoginPage() {
                     placeholder="000000"
                     className="text-center text-2xl tracking-widest font-mono"
                     value={otp}
-                    onChange={(e) =>
-                      setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))
-                    }
+                    onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
                     required
                   />
                 </div>
 
-                <Button
-                  type="submit"
-                  className="w-full"
-                  disabled={otpLoading || otp.length !== 6}
-                >
+                <Button type="submit" className="w-full" disabled={otpLoading || otp.length !== 6}>
                   {otpLoading ? "Verifying..." : "Verify & Continue"}
                 </Button>
               </form>
@@ -379,9 +302,7 @@ export default function LoginPage() {
     );
   }
 
-  // ──────────────────────────────────────────────────────
-  // LOGIN FORM (original UI)
-  // ──────────────────────────────────────────────────────
+  // Login Form
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <header className="border-b border-border">
@@ -411,72 +332,52 @@ export default function LoginPage() {
 
           <CardContent>
             <form onSubmit={handleLogin} className="space-y-4">
-              {/* Email */}
               <div className="space-y-2">
-                <Label htmlFor="email" className="text-foreground">
-                  Email
-                </Label>
+                <Label htmlFor="email" className="text-foreground">Email</Label>
                 <div className="relative">
                   <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
                     id="email"
                     type="email"
                     placeholder="you@example.com"
-                    className="pl-10 bg-background border-input text-foreground"
+                    className="pl-10"
                     value={formData.email}
-                    onChange={(e) =>
-                      setFormData({ ...formData, email: e.target.value })
-                    }
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                     required
                   />
                 </div>
               </div>
 
-              {/* Password + Forgot */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <Label htmlFor="password" className="text-foreground">
-                    Password
-                  </Label>
-
+                  <Label htmlFor="password" className="text-foreground">Password</Label>
                   <Dialog open={isResetDialogOpen} onOpenChange={setIsResetDialogOpen}>
                     <DialogTrigger asChild>
-                      <button
-                        type="button"
-                        className="text-sm text-secondary hover:underline"
-                      >
+                      <button type="button" className="text-sm text-secondary hover:underline">
                         Forgot Password?
                       </button>
                     </DialogTrigger>
-
-                    <DialogContent className="bg-card border-border">
+                    <DialogContent>
                       <DialogHeader>
-                        <DialogTitle className="text-foreground">
-                          Reset Password
-                        </DialogTitle>
-                        <DialogDescription className="text-muted-foreground">
+                        <DialogTitle>Reset Password</DialogTitle>
+                        <DialogDescription>
                           Enter your email address and we'll send you a reset link
                         </DialogDescription>
                       </DialogHeader>
-
                       <div className="space-y-4 pt-4">
                         <div className="space-y-2">
-                          <Label htmlFor="reset-email" className="text-foreground">
-                            Email
-                          </Label>
+                          <Label htmlFor="reset-email">Email</Label>
                           <Input
                             id="reset-email"
                             type="email"
                             placeholder="you@example.com"
-                            className="bg-background border-input text-foreground"
                             value={resetEmail}
                             onChange={(e) => setResetEmail(e.target.value)}
                           />
                         </div>
-
                         <Button
                           onClick={handlePasswordReset}
-                          className="w-full bg-secondary text-secondary-foreground hover:bg-secondary/90"
+                          className="w-full"
                           disabled={resetLoading}
                         >
                           {resetLoading ? "Sending..." : "Send Reset Link"}
@@ -492,43 +393,33 @@ export default function LoginPage() {
                     id="password"
                     type="password"
                     placeholder="••••••••"
-                    className="pl-10 bg-background border-input text-foreground"
+                    className="pl-10"
                     value={formData.password}
-                    onChange={(e) =>
-                      setFormData({ ...formData, password: e.target.value })
-                    }
+                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                     required
                   />
                 </div>
               </div>
 
-              {/* Remember me */}
               <div className="flex items-center space-x-2">
                 <Checkbox
                   id="remember"
                   checked={formData.rememberMe}
-                  onCheckedChange={(c) =>
-                    setFormData({ ...formData, rememberMe: c as boolean })
-                  }
+                  onCheckedChange={(c) => setFormData({ ...formData, rememberMe: c as boolean })}
                 />
-                <label
-                  htmlFor="remember"
-                  className="text-sm text-muted-foreground cursor-pointer"
-                >
+                <label htmlFor="remember" className="text-sm text-muted-foreground cursor-pointer">
                   Stay logged in for 30 days
                 </label>
               </div>
 
-              {/* Submit */}
               <Button
                 type="submit"
-                className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
+                className="w-full"
                 disabled={loginLoading}
               >
-                {loginLoading ? "Sending code..." : "Log In"}
+                {loginLoading ? "Logging in..." : "Log In"}
               </Button>
 
-              {/* Sign-up link */}
               <p className="text-center text-sm text-muted-foreground">
                 Don't have an account?{" "}
                 <Link href="/register" className="text-primary hover:underline font-medium">
