@@ -64,8 +64,9 @@ export default function LoginPage() {
     return () => clearInterval(timer);
   }, [countdown]);
 
+
  
-  const handleLogin = async (e: React.FormEvent) => {
+  // const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.email || !formData.password) {
       toast({
@@ -112,7 +113,76 @@ export default function LoginPage() {
     } finally {
       setLoginLoading(false);
     }
-  };
+  // };
+
+  const handleLogin = async (e: React.FormEvent) => {
+  e.preventDefault();
+  if (!formData.email || !formData.password) {
+    toast({
+      title: "Missing fields",
+      description: "Please enter your email and password",
+      variant: "destructive",
+    });
+    return;
+  }
+
+  setLoginLoading(true);
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email: formData.email,
+        password: formData.password,
+      }),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      throw new Error(data.message || "Login failed");
+    }
+
+    // TEMPORARY BYPASS: If backend already returns access_token on login, use it directly
+    if (data.access_token) {
+      const days = formData.rememberMe ? 30 : 7;
+      Cookies.set("auth_token", data.access_token, { expires: days });
+      Cookies.set("user_data", JSON.stringify(data.user), { expires: days });
+      Cookies.set("user_role", JSON.stringify(data.userRole));
+
+      toast({
+        title: "Welcome back!",
+        description: "You've successfully logged in",
+      });
+
+      if (data.user.type === "admin") {
+        router.push("/admin/dashboard");
+      } else {
+        router.push("/dashboard");
+      }
+      return; // Skip OTP step entirely
+    }
+
+    // FALLBACK: Old behavior (OTP flow) — keep this so switching back is 1-line
+    setTempToken(data.temp_token);
+    setEmailForOtp(formData.email);
+    setStep("otp");
+    setCountdown(600);
+
+    toast({
+      title: "Check your email!",
+      description: `We sent a 6-digit code to ${formData.email}`,
+    });
+  } catch (err: any) {
+    toast({
+      title: "Login failed",
+      description: err.message || "Invalid email or password",
+      variant: "destructive",
+    });
+  } finally {
+    setLoginLoading(false);
+  }
+};
 
   
   const handleVerifyOtp = async (e: React.FormEvent) => {
