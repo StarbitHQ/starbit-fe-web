@@ -1,7 +1,7 @@
 // UsersPage.tsx
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -21,20 +21,30 @@ import {
 import { NavHeader } from "@/components/admin-nav";
 import { FiltersBar } from "./components/FiltersBar";
 import { UsersTable } from "./components/UsersTable";
+import { UserDetailsDialog } from "./components/UserDetailsDialog";
 import { useUsers } from "./hooks/useUsers";
-import type { User } from "./types/user";
+import { useToast } from "@/hooks/use-toast";
+import { getCookie } from "./utils/cookie";
+import { API_BASE_URL } from "@/lib/api";
+import type { User, UserDetail } from "./types/user";
 
 type SortableField = "name" | "email" | "created_at" | "account_bal";
 
 const PAGE_SIZE_OPTIONS = [10, 15, 25, 50, 100];
 
 export default function UsersPage() {
+  const { toast } = useToast();
+
   // Use the hook
-  const { users, loading, pagination, filters, setFilters } = useUsers();
+  const { users, loading, pagination, filters, setFilters, refetch } = useUsers();
 
   // Local state for controlled inputs (debounced)
   const [searchInput, setSearchInput] = useState("");
-  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+
+  // Modal state
+  const [selectedUser, setSelectedUser] = useState<UserDetail | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isLoadingUser, setIsLoadingUser] = useState(false);
 
   // Debounce search input
   useEffect(() => {
@@ -44,7 +54,107 @@ export default function UsersPage() {
       }
     }, 300);
     return () => clearTimeout(timer);
-  }, [searchInput]);
+  }, [searchInput, filters.search, setFilters]);
+
+  // Fetch full user details when viewing
+  const fetchUserDetails = useCallback(async (userId: number) => {
+    setIsLoadingUser(true);
+    try {
+      const token = getCookie("auth_token");
+      if (!token) throw new Error("No authentication token");
+
+      const res = await fetch(`${API_BASE_URL}/api/admin/users/${userId}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "application/json",
+        },
+      });
+
+      if (!res.ok) throw new Error("Failed to fetch user details");
+
+      const data = await res.json();
+      
+      // Transform the response to match UserDetail type
+      const userDetail: UserDetail = {
+        ...data.user,
+        status: data.user.is_blocked ? "suspended" : (data.user.email_verified_at ? "active" : "inactive"),
+        email_verified: !!data.user.email_verified_at,
+        two_factor_enabled: data.user.two_factor_enabled ?? false,
+        account_bal: data.user.balance,
+      };
+
+      setSelectedUser(userDetail);
+      setIsModalOpen(true);
+    } catch (err) {
+      toast({
+        title: "Error",
+        description: err instanceof Error ? err.message : "Failed to load user details",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoadingUser(false);
+    }
+  }, [toast]);
+
+  // Handle view user - fetch full details then open modal
+  const handleViewUser = (user: User) => {
+    fetchUserDetails(user.id);
+  };
+
+  // Handle viewing a user from within the modal (e.g., clicking a referral)
+  const handleViewUserById = (userId: number) => {
+    fetchUserDetails(userId);
+  };
+
+  // Handle status change from modal
+  const handleStatusChange = async (userId: number, status: string) => {
+    try {
+      const token = getCookie("auth_token");
+      if (!token) throw new Error("No authentication token");
+
+      let endpoint = "";
+      if (status === "suspended") {
+        endpoint = `/api/admin/users/${userId}/suspend`;
+      } else if (status === "active") {
+        endpoint = `/api/admin/users/${userId}/unsuspend`;
+      }
+
+      if (endpoint) {
+        const res = await fetch(`${API_BASE_URL}${endpoint}`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
+          },
+        });
+
+        if (!res.ok) throw new Error("Failed to update status");
+
+        toast({
+          title: "Success",
+          description: `User status updated to ${status}`,
+        });
+
+        // Refresh user details and list
+        fetchUserDetails(userId);
+        refetch();
+      }
+    } catch (err) {
+      toast({
+        title: "Error",
+        description: err instanceof Error ? err.message : "Failed to update status",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Refetch user details (called after mutations in modal)
+  const handleRefetchUser = () => {
+    if (selectedUser) {
+      fetchUserDetails(selectedUser.id);
+    }
+    refetch();
+  };
 
   // Handle sort
   const handleSort = (field: SortableField) => {
@@ -57,7 +167,7 @@ export default function UsersPage() {
   };
 
   // Handle status filter change
-  const handleStatusChange = (value: string) => {
+  const handleStatusFilterChange = (value: string) => {
     setFilters((prev) => ({ ...prev, status: value, page: 1 }));
   };
 
@@ -74,12 +184,6 @@ export default function UsersPage() {
   // Handle page change
   const handlePageChange = (page: number) => {
     setFilters((prev) => ({ ...prev, page }));
-  };
-
-  // Handle view user
-  const handleViewUser = (user: User) => {
-    setSelectedUser(user);
-    // Open your modal here or navigate to user detail page
   };
 
   return (
@@ -103,7 +207,7 @@ export default function UsersPage() {
           search={searchInput}
           setSearch={setSearchInput}
           status={filters.status ?? "all"}
-          setStatus={handleStatusChange}
+          setStatus={handleStatusFilterChange}
           kyc={filters.kyc ?? "all"}
           setKyc={handleKycChange}
           filteredUsers={users}
@@ -119,7 +223,7 @@ export default function UsersPage() {
               sortDir={filters.sortOrder ?? "desc"}
               onSort={handleSort}
               onView={handleViewUser}
-              isLoading={loading}
+              isLoading={loading || isLoadingUser}
             />
 
             {/* Pagination */}
@@ -201,13 +305,15 @@ export default function UsersPage() {
           </CardContent>
         </Card>
 
-        {/* User Detail Modal would go here */}
-        {/* {selectedUser && (
-          <UserDetailModal 
-            user={selectedUser} 
-            onClose={() => setSelectedUser(null)} 
-          />
-        )} */}
+        {/* User Details Modal */}
+        <UserDetailsDialog
+          open={isModalOpen}
+          onOpenChange={setIsModalOpen}
+          user={selectedUser}
+          onStatusChange={handleStatusChange}
+          onViewUser={handleViewUserById}
+          refetchUser={handleRefetchUser}
+        />
       </main>
     </div>
   );
