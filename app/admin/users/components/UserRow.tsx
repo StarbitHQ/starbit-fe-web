@@ -1,3 +1,4 @@
+// UserRow.tsx
 import { TableCell, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -12,8 +13,68 @@ interface Props {
 export const UserRow = ({ user, onView }: Props) => {
   const isBlocked = user.is_blocked === 1 || user.is_blocked === true;
 
+  const getStatusBadge = () => {
+    if (isBlocked) {
+      return (
+        <Badge className="bg-red-500 text-white hover:bg-red-600">
+          Suspended
+        </Badge>
+      );
+    }
+    if (!user.email_verified_at) {
+      return (
+        <Badge className="bg-yellow-500 text-white hover:bg-yellow-600">
+          Inactive
+        </Badge>
+      );
+    }
+    return (
+      <Badge className="bg-green-500 text-white hover:bg-green-600">
+        Active
+      </Badge>
+    );
+  };
+
+  const getKycBadge = () => {
+    const status = user.kyc_status;
+
+    if (status === "verified") {
+      return (
+        <Badge variant="outline" className="border-green-500 text-green-500">
+          Verified
+        </Badge>
+      );
+    }
+    if (status === "pending") {
+      return (
+        <Badge variant="outline" className="border-yellow-500 text-yellow-500">
+          Pending
+        </Badge>
+      );
+    }
+    if (status === "rejected") {
+      return (
+        <Badge variant="outline" className="border-red-500 text-red-500">
+          Rejected
+        </Badge>
+      );
+    }
+    return (
+      <Badge variant="outline" className="border-gray-400 text-gray-400">
+        None
+      </Badge>
+    );
+  };
+
+  const formatBalance = (balance: number | string | null | undefined) => {
+    if (balance === null || balance === undefined) return "$0.00";
+    const num = typeof balance === "string" ? parseFloat(balance) : balance;
+    return `$${num.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  };
+
   return (
     <TableRow className="border-border hover:bg-muted/50">
+      {/* User Info */}
       <TableCell>
         <div className="flex items-center gap-3">
           <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
@@ -26,11 +87,14 @@ export const UserRow = ({ user, onView }: Props) => {
         </div>
       </TableCell>
 
+      {/* Contact */}
       <TableCell>
         <div className="text-sm">
           <div className="flex items-center gap-1 text-muted-foreground mb-1">
             <Mail className="h-3 w-3" />
-            <span className="truncate max-w-[150px]">{user.email}</span>
+            <span className="truncate max-w-[150px]" title={user.email}>
+              {user.email}
+            </span>
           </div>
           {user.phone && (
             <div className="flex items-center gap-1 text-muted-foreground">
@@ -41,44 +105,26 @@ export const UserRow = ({ user, onView }: Props) => {
         </div>
       </TableCell>
 
-      {/* Status Badge: Active (green) / Suspended (red) */}
-      <TableCell>
-        <Badge
-          variant={isBlocked ? "destructive" : "default"}
-          className={
-            isBlocked
-              ? "bg-red-500 text-white hover:bg-red-600"
-              : "bg-green-500 text-white hover:bg-green-600"
-          }
-        >
-          {isBlocked ? "Suspended" : "Active"}
-        </Badge>
-      </TableCell>
+      {/* Status */}
+      <TableCell>{getStatusBadge()}</TableCell>
 
-      {/* KYC Badge */}
-      <TableCell>
-        <Badge
-          variant="outline"
-          className={
-            user.kyc_status === "verified"
-              ? "border-green-500 text-green-500"
-              : user.kyc_status === "pending"
-              ? "border-yellow-500 text-yellow-500"
-              : "border-red-500 text-red-500"
-          }
-        >
-          {user.kyc_status || "Not Started"}
-        </Badge>
-      </TableCell>
+      {/* KYC */}
+      <TableCell>{getKycBadge()}</TableCell>
 
+      {/* Balance */}
       <TableCell className="font-semibold text-foreground">
-        {user.account_bal}
-      </TableCell>
-      <TableCell className="text-foreground">{user.trades_count}</TableCell>
-      <TableCell className="text-foreground">
-        {user.referred_users_count}
+        {formatBalance(user.account_bal)}
       </TableCell>
 
+      {/* Trades */}
+      <TableCell className="text-foreground">{user.trades_count ?? 0}</TableCell>
+
+      {/* Referrals */}
+      <TableCell className="text-foreground">
+        {user.referred_users_count ?? 0}
+      </TableCell>
+
+      {/* Joined Date */}
       <TableCell>
         <div className="text-sm">
           <p className="text-foreground">
@@ -92,6 +138,7 @@ export const UserRow = ({ user, onView }: Props) => {
         </div>
       </TableCell>
 
+      {/* Actions */}
       <TableCell>
         <Button
           size="sm"
