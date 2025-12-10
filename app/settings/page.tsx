@@ -209,7 +209,7 @@ export default function SettingsPage() {
               onSetPin={() => setShowSetPinModal(true)}
               onUpdatePin={() => setShowUpdatePinModal(true)}
             />
-            {/* <ChangePasswordCard token={token} /> */}
+            <ChangePasswordCard token={token} />
             <TwoFactorCard
               enabled={twoFAEnabled}
               token={token}

@@ -25,6 +25,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { API_BASE_URL } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -33,12 +40,14 @@ import {
   CheckCircle,
   XCircle,
   ExternalLink,
-  RefreshCw,
   Search,
   Clock,
-  AlertCircle,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
 } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Cookies from "js-cookie";
 
 interface Withdrawal {
@@ -60,20 +69,49 @@ interface Withdrawal {
   processed_at: string | null;
 }
 
+interface PaginationMeta {
+  current_page: number;
+  total: number;
+  per_page: number;
+  last_page: number;
+}
+
+const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
+
 export default function WithdrawalManagementPage() {
   const { toast } = useToast();
   const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
-  const [allWithdrawals, setAllWithdrawals] = useState<Withdrawal[]>([]);
+  const [meta, setMeta] = useState<PaginationMeta>({
+    current_page: 1,
+    total: 0,
+    per_page: 20,
+    last_page: 1,
+  });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
 
   // Modal states
   const [txHash, setTxHash] = useState("");
   const [processingId, setProcessingId] = useState<number | null>(null);
   const [cancellingId, setCancellingId] = useState<number | null>(null);
 
-  const fetchWithdrawals = async () => {
+  // Debounce search query
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+      setCurrentPage(1); // Reset to first page on search
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  const fetchWithdrawals = useCallback(async () => {
     setIsLoading(true);
     setError(null);
 
@@ -81,21 +119,32 @@ export default function WithdrawalManagementPage() {
       const token = Cookies.get("auth_token");
       if (!token) throw new Error("Please log in again");
 
-      const res = await fetch(`${API_BASE_URL}/api/admin/withdrawals`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
+      const params = new URLSearchParams({
+        page: currentPage.toString(),
+        per_page: pageSize.toString(),
       });
+
+      if (debouncedSearch.trim()) {
+        params.append("search", debouncedSearch.trim());
+      }
+
+      const res = await fetch(
+        `${API_BASE_URL}/api/admin/withdrawals?${params.toString()}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
 
       if (!res.ok) throw new Error("Failed to fetch withdrawals");
 
       const result = await res.json();
       if (!result.success) throw new Error(result.message || "Unknown error");
 
-      const data = result.data;
-      setAllWithdrawals(data);
-      setWithdrawals(data);
+      setWithdrawals(result.data);
+      setMeta(result.meta);
     } catch (err: any) {
       setError(err.message);
       toast({
@@ -106,33 +155,17 @@ export default function WithdrawalManagementPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [currentPage, pageSize, debouncedSearch, toast]);
 
   useEffect(() => {
     fetchWithdrawals();
-  }, []);
+  }, [fetchWithdrawals]);
 
-  // Search filter
-  useEffect(() => {
-    if (!searchQuery.trim()) {
-      setWithdrawals(allWithdrawals);
-      return;
-    }
-
-    const q = searchQuery.toLowerCase();
-    const filtered = allWithdrawals.filter((w) => {
-      return (
-        w.id.toString().includes(q) ||
-        w.user.name.toLowerCase().includes(q) ||
-        w.user.email.toLowerCase().includes(q) ||
-        w.wallet_address?.toLowerCase().includes(q) ||
-        w.tx_hash?.toLowerCase().includes(q) ||
-        w.amount.includes(q) ||
-        w.method.toLowerCase().includes(q)
-      );
-    });
-    setWithdrawals(filtered);
-  }, [searchQuery, allWithdrawals]);
+  // Reset to page 1 when page size changes
+  const handlePageSizeChange = (value: string) => {
+    setPageSize(Number(value));
+    setCurrentPage(1);
+  };
 
   const handleProcess = async () => {
     if (!processingId) return;
@@ -217,15 +250,11 @@ export default function WithdrawalManagementPage() {
     );
   };
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-10 w-10 animate-spin" />
-      </div>
-    );
-  }
+  // Calculate display range
+  const startIndex = (meta.current_page - 1) * meta.per_page + 1;
+  const endIndex = Math.min(meta.current_page * meta.per_page, meta.total);
 
-  if (error) {
+  if (error && withdrawals.length === 0) {
     return (
       <div className="min-h-screen flex items-center justify-center text-red-500">
         {error}
@@ -246,7 +275,7 @@ export default function WithdrawalManagementPage() {
                   Withdrawal Management
                 </CardTitle>
                 <CardDescription>
-                  Review and process user withdrawal requests
+                  Review and process user withdrawal requests ({meta.total} total)
                 </CardDescription>
               </div>
               <div className="relative w-full sm:w-80">
@@ -262,98 +291,186 @@ export default function WithdrawalManagementPage() {
           </CardHeader>
 
           <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>ID</TableHead>
-                  <TableHead>User</TableHead>
-                  <TableHead>Amount</TableHead>
-                  <TableHead>Method</TableHead>
-                  <TableHead>Wallet / Tx</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {withdrawals.length === 0 ? (
+            <div className="relative">
+              {isLoading && (
+                <div className="absolute inset-0 bg-background/50 flex items-center justify-center z-10">
+                  <Loader2 className="h-8 w-8 animate-spin" />
+                </div>
+              )}
+
+              <Table>
+                <TableHeader>
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-12 text-muted-foreground">
-                      {searchQuery ? "No withdrawals match your search" : "No withdrawals found"}
-                    </TableCell>
+                    <TableHead>ID</TableHead>
+                    <TableHead>User</TableHead>
+                    <TableHead>Amount</TableHead>
+                    <TableHead>Method</TableHead>
+                    <TableHead>Wallet / Tx</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Actions</TableHead>
                   </TableRow>
-                ) : (
-                  withdrawals.map((w) => (
-                    <TableRow key={w.id} className={w.status === "pending" ? "bg-yellow-50" : ""}>
-                      <TableCell className="font-mono">#{w.id}</TableCell>
-                      <TableCell>
-                        <div>
-                          <p className="font-medium">{w.user.name}</p>
-                          <p className="text-xs text-muted-foreground">{w.user.email}</p>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="font-bold">${w.amount}</div>
-                        <div className="text-xs text-muted-foreground">
-                          Net: ${w.net_amount} (Fee: ${w.fee})
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div>
-                          <span className="font-medium">{w.method}</span>
-                          {w.network && <span className="text-xs block text-muted-foreground">({w.network})</span>}
-                        </div>
-                      </TableCell>
-                      <TableCell className="max-w-xs">
-                        {w.wallet_address && (
-                          <p className="font-mono text-xs truncate">{w.wallet_address}</p>
-                        )}
-                        {w.tx_hash && (
-                          <a
-                            href={`https://tronscan.org/#/transaction/${w.tx_hash}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 text-primary text-xs hover:underline mt-1"
-                          >
-                            <ExternalLink className="h-3 w-3" />
-                            View Tx
-                          </a>
-                        )}
-                      </TableCell>
-                      <TableCell>{getStatusBadge(w.status)}</TableCell>
-                      <TableCell>
-                        <div className="flex gap-2">
-                          {w.status === "pending" && (
-                            <>
-                              <Button
-                                size="sm"
-                                onClick={() => {
-                                  setProcessingId(w.id);
-                                  setTxHash(w.tx_hash || "");
-                                }}
-                              >
-                                <CheckCircle className="h-4 w-4 mr-1" />
-                                Process
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="destructive"
-                                onClick={() => setCancellingId(w.id)}
-                              >
-                                <XCircle className="h-4 w-4 mr-1" />
-                                Cancel
-                              </Button>
-                            </>
-                          )}
-                          {w.status !== "pending" && (
-                            <span className="text-muted-foreground text-xs">Done</span>
-                          )}
-                        </div>
+                </TableHeader>
+                <TableBody>
+                  {withdrawals.length === 0 && !isLoading ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center py-12 text-muted-foreground">
+                        {searchQuery ? "No withdrawals match your search" : "No withdrawals found"}
                       </TableCell>
                     </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
+                  ) : (
+                    withdrawals.map((w) => (
+                      <TableRow key={w.id} className={w.status === "pending" ? "bg-yellow-50" : ""}>
+                        <TableCell className="font-mono">#{w.id}</TableCell>
+                        <TableCell>
+                          <div>
+                            <p className="font-medium">{w.user.name}</p>
+                            <p className="text-xs text-muted-foreground">{w.user.email}</p>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="font-bold">${w.amount}</div>
+                          <div className="text-xs text-muted-foreground">
+                            Net: ${w.net_amount} (Fee: ${w.fee})
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div>
+                            <span className="font-medium">{w.method || "Crypto"}</span>
+                            {w.network && <span className="text-xs block text-muted-foreground">({w.network})</span>}
+                          </div>
+                        </TableCell>
+                        <TableCell className="max-w-xs">
+                          {w.wallet_address && (
+                            <p className="font-mono text-xs truncate" title={w.wallet_address}>
+                              {w.wallet_address}
+                            </p>
+                          )}
+                          {w.tx_hash && (
+                            <a
+                              href={`https://tronscan.org/#/transaction/${w.tx_hash}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 text-primary text-xs hover:underline mt-1"
+                            >
+                              <ExternalLink className="h-3 w-3" />
+                              View Tx
+                            </a>
+                          )}
+                        </TableCell>
+                        <TableCell>{getStatusBadge(w.status)}</TableCell>
+                        <TableCell>
+                          <div className="flex gap-2">
+                            {w.status === "pending" && (
+                              <>
+                                <Button
+                                  size="sm"
+                                  onClick={() => {
+                                    setProcessingId(w.id);
+                                    setTxHash(w.tx_hash || "");
+                                  }}
+                                >
+                                  <CheckCircle className="h-4 w-4 mr-1" />
+                                  Process
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="destructive"
+                                  onClick={() => setCancellingId(w.id)}
+                                >
+                                  <XCircle className="h-4 w-4 mr-1" />
+                                  Cancel
+                                </Button>
+                              </>
+                            )}
+                            {w.status !== "pending" && (
+                              <span className="text-muted-foreground text-xs">Done</span>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+
+            {/* Pagination Controls */}
+            {meta.total > 0 && (
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6 pt-4 border-t">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <span>
+                    Showing {startIndex} to {endIndex} of {meta.total} withdrawals
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-muted-foreground">Rows per page:</span>
+                    <Select
+                      value={pageSize.toString()}
+                      onValueChange={handlePageSizeChange}
+                    >
+                      <SelectTrigger className="w-[70px] h-8">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {PAGE_SIZE_OPTIONS.map((size) => (
+                          <SelectItem key={size} value={size.toString()}>
+                            {size}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() => setCurrentPage(1)}
+                      disabled={meta.current_page === 1 || isLoading}
+                    >
+                      <ChevronsLeft className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                      disabled={meta.current_page === 1 || isLoading}
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+
+                    <div className="flex items-center gap-1 px-2">
+                      <span className="text-sm font-medium">
+                        Page {meta.current_page} of {meta.last_page}
+                      </span>
+                    </div>
+
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() => setCurrentPage((p) => Math.min(meta.last_page, p + 1))}
+                      disabled={meta.current_page === meta.last_page || isLoading}
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() => setCurrentPage(meta.last_page)}
+                      disabled={meta.current_page === meta.last_page || isLoading}
+                    >
+                      <ChevronsRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
 
