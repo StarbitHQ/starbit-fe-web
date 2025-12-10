@@ -1,5 +1,5 @@
 // FiltersBar.tsx
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { toast } from "@/components/ui/use-toast";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -19,7 +19,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Search, Filter, Download, Plus } from "lucide-react";
+import { Search, Filter, Download, Plus, Loader2 } from "lucide-react";
 import { exportUsersCsv } from "../utils/exportCsv";
 import { api } from "@/lib/api";
 import type { User } from "../types/user";
@@ -32,6 +32,9 @@ interface Props {
   kyc: string;
   setKyc: (v: string) => void;
   filteredUsers: User[];
+  onSearchResults?: (users: User[], meta?: any) => void;
+  isSearching?: boolean;
+  setIsSearching?: (v: boolean) => void;
 }
 
 export const FiltersBar = ({
@@ -42,6 +45,9 @@ export const FiltersBar = ({
   kyc,
   setKyc,
   filteredUsers,
+  onSearchResults,
+  isSearching = false,
+  setIsSearching,
 }: Props) => {
   /* ---------- Add-Admin modal state ---------- */
   const [open, setOpen] = useState(false);
@@ -49,7 +55,56 @@ export const FiltersBar = ({
   const [adminEmail, setAdminEmail] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  
+  /* ---------- Debounced search ---------- */
+  const [debouncedSearch, setDebouncedSearch] = useState(search);
+
+  // Debounce the search input
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search);
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  // Fetch users when debounced search, status, or kyc changes
+  useEffect(() => {
+    const fetchUsers = async () => {
+      if (!onSearchResults) return;
+
+      setIsSearching?.(true);
+
+      try {
+        const params = new URLSearchParams();
+
+        if (debouncedSearch.trim()) {
+          params.append("search", debouncedSearch.trim());
+        }
+        if (status && status !== "all") {
+          params.append("status", status);
+        }
+        if (kyc && kyc !== "all") {
+          params.append("kyc", kyc);
+        }
+
+        const response = await api.get(`/admin/users?${params.toString()}`);
+
+        if (response.data.success) {
+          onSearchResults(response.data.data, response.data.meta);
+        }
+      } catch (error: any) {
+        toast({
+          title: "Search Error",
+          description: error.message || "Failed to search users",
+          variant: "destructive",
+        });
+      } finally {
+        setIsSearching?.(false);
+      }
+    };
+
+    fetchUsers();
+  }, [debouncedSearch, status, kyc, onSearchResults, setIsSearching]);
 
   const handleAddAdmin = async (e: React.MouseEvent<HTMLButtonElement>) => {
     e.preventDefault();
@@ -112,6 +167,9 @@ export const FiltersBar = ({
           onChange={(e) => setSearch(e.target.value)}
           className="pl-10 bg-background border-input text-foreground"
         />
+        {isSearching && (
+          <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
+        )}
       </div>
 
       {/* ---- Status filter ---- */}
