@@ -228,6 +228,7 @@ export default function DepositManagementPage() {
                   <TableHead>Coin</TableHead>
                   <TableHead>Expected</TableHead>
                   <TableHead>Proof</TableHead>
+                  <TableHead>Date</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Actions</TableHead>
                 </TableRow>
@@ -278,6 +279,7 @@ export default function DepositManagementPage() {
                           <span className="text-muted-foreground text-sm">—</span>
                         )}
                       </TableCell>
+                      <TableCell>{d.created_at}</TableCell>
                       <TableCell>{getStatusBadge(d.status)}</TableCell>
                       <TableCell>
                         <div className="flex gap-2 flex-wrap">
