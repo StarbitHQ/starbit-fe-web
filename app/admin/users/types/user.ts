@@ -73,6 +73,9 @@ export interface UserDetail extends User {
   referrals: ReferralSummary;
   trades: TradeSummary;
 
+  total_deposits?: number;
+  total_withdrawals?: number;
+
   /** Optional fields */
   wallet_address: string | null;
 

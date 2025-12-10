@@ -73,9 +73,19 @@ export const UserDetailsDialog = ({
         <div className="space-y-6 mt-4">
           {/* Quick stats */}
           {/* Quick stats */}
-          <div className="grid gap-4 md:grid-cols-4">
+          <div className="grid gap-4 md:grid-cols-3">
             {[
-              { label: "Balance", value: `$${user.balance}` },
+              { label: "Balance", value: `$${user.account_bal}` },
+              {
+                label: "Total Deposits",
+                value: `$${Number(user.total_deposits ?? 0).toLocaleString()}`,
+              },
+              {
+                label: "Total Withdrawals",
+                value: `$${Number(
+                  user.total_withdrawals ?? 0
+                ).toLocaleString()}`,
+              },
               { label: "Total Trades", value: user.trades?.total_count ?? 0 },
               {
                 label: "Volume",
@@ -95,7 +105,6 @@ export const UserDetailsDialog = ({
               </Card>
             ))}
           </div>
-
           {/* User info */}
           <Card className="bg-muted/30 border-border">
             <CardHeader>
