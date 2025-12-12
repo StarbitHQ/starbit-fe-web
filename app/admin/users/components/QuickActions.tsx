@@ -50,7 +50,6 @@ const emailSchema = z.object({
 const account_balSchema = z.object({
   account_bal: z.coerce
     .number()
-    .positive("account_bal must be a positive number")
     .refine(
       (v) =>
         !v.toString().includes(".") || v.toString().split(".")[1].length <= 2,
